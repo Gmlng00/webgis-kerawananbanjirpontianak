@@ -1,0 +1,991 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>WebGIS Sebaran Genangan Banjir – Kota Pontianak</title>
+  <meta name="description" content="Dashboard WebGIS Sebaran Genangan dan Daerah Rawan Banjir Kota Pontianak berdasarkan Analisis Time-Series NDWI menggunakan Google Earth Engine." />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --primary:#1565C0;--primary-light:#1976D2;--primary-dark:#0D47A1;
+      --accent:#0288D1;--accent-light:#03A9F4;
+      --success:#2E7D32;--warning:#E65100;--danger:#B71C1C;
+      --rawan-tinggi:#D32F2F;--rawan-sedang:#FF8F00;--rawan-rendah:#FDD835;--rawan-tidak:#EEEEEE;
+      --bg-page:#F0F4F8;--bg-surface:#FFFFFF;--bg-header:#0D47A1;
+      --text-primary:#1A2332;--text-secondary:#4A5568;--text-light:#718096;--text-white:#FFFFFF;
+      --border:#D1DCE8;
+      --shadow-sm:0 1px 3px rgba(0,0,0,0.10);
+      --shadow-md:0 4px 12px rgba(0,0,0,0.12);
+      --shadow-lg:0 8px 24px rgba(0,0,0,0.16);
+      --radius-sm:6px;--radius-md:10px;--radius-lg:14px;
+      --header-h:70px;--sidebar-w:320px;--panel-h:290px;
+      --transition:all 0.25s cubic-bezier(0.4,0,0.2,1);
+    }
+    *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+    html,body{height:100%;font-family:'Inter',sans-serif;background:var(--bg-page);color:var(--text-primary);overflow:hidden;}
+
+    /* HEADER */
+    #header{
+      position:fixed;top:0;left:0;right:0;z-index:1100;height:var(--header-h);
+      background:linear-gradient(135deg,var(--bg-header) 0%,var(--primary-light) 60%,var(--accent) 100%);
+      display:flex;align-items:center;justify-content:space-between;
+      padding:0 20px 0 16px;box-shadow:var(--shadow-lg);
+    }
+    .header-left{display:flex;align-items:center;gap:14px;}
+    .logo-box{
+      width:46px;height:46px;border-radius:10px;
+      background:rgba(255,255,255,0.15);border:2px solid rgba(255,255,255,0.35);
+      display:flex;align-items:center;justify-content:center;font-size:22px;color:#fff;
+      backdrop-filter:blur(8px);
+    }
+    .title-box h1{font-size:14px;font-weight:700;color:#fff;line-height:1.25;letter-spacing:0.01em;}
+    .title-box p{font-size:11.5px;font-weight:400;color:rgba(255,255,255,0.80);margin-top:2px;}
+    .header-right{display:flex;align-items:center;gap:10px;}
+    .header-badge{
+      background:rgba(255,255,255,0.15);border:1px solid rgba(255,255,255,0.30);
+      border-radius:20px;padding:5px 14px;font-size:11.5px;font-weight:600;color:#fff;
+      backdrop-filter:blur(6px);white-space:nowrap;
+    }
+    .btn-icon{
+      width:36px;height:36px;border-radius:8px;background:rgba(255,255,255,0.15);
+      border:1px solid rgba(255,255,255,0.25);color:#fff;cursor:pointer;font-size:14px;
+      display:flex;align-items:center;justify-content:center;transition:var(--transition);
+    }
+    .btn-icon:hover{background:rgba(255,255,255,0.28);transform:translateY(-1px);}
+
+    /* APP LAYOUT */
+    #app{position:fixed;top:var(--header-h);left:0;right:0;bottom:0;display:flex;flex-direction:row;}
+
+    /* SIDEBAR */
+    #sidebar{
+      width:var(--sidebar-w);height:100%;background:var(--bg-surface);
+      border-right:1px solid var(--border);display:flex;flex-direction:column;
+      overflow:hidden;box-shadow:var(--shadow-md);z-index:100;flex-shrink:0;
+      transition:width 0.3s ease;
+    }
+    #sidebar.collapsed{width:0;}
+    .sidebar-tabs{display:flex;background:#F7FAFC;border-bottom:1px solid var(--border);flex-shrink:0;}
+    .tab-btn{
+      flex:1;padding:11px 6px;background:none;border:none;cursor:pointer;
+      font-family:'Inter',sans-serif;font-size:11px;font-weight:600;color:var(--text-light);
+      display:flex;flex-direction:column;align-items:center;gap:3px;
+      transition:var(--transition);border-bottom:2.5px solid transparent;
+    }
+    .tab-btn i{font-size:14px;}
+    .tab-btn.active{color:var(--primary);border-bottom-color:var(--primary);background:#fff;}
+    .tab-btn:hover:not(.active){color:var(--text-primary);background:#EDF2F7;}
+    .tab-panel{display:none;flex:1;overflow-y:auto;padding:14px;flex-direction:column;gap:12px;}
+    .tab-panel.active{display:flex;}
+    .tab-panel::-webkit-scrollbar{width:5px;}
+    .tab-panel::-webkit-scrollbar-thumb{background:#CBD5E0;border-radius:4px;}
+
+    /* SIDEBAR COMPONENTS */
+    .section-title{
+      font-size:10px;font-weight:700;letter-spacing:0.08em;color:var(--text-light);
+      text-transform:uppercase;padding-bottom:6px;border-bottom:1px solid var(--border);margin-bottom:4px;
+    }
+    .stat-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;}
+    .stat-card{
+      background:#F7FAFC;border:1px solid var(--border);border-radius:var(--radius-md);
+      padding:12px 10px;transition:var(--transition);
+    }
+    .stat-card:hover{box-shadow:var(--shadow-sm);transform:translateY(-1px);}
+    .stat-card .stat-icon{width:28px;height:28px;border-radius:7px;display:flex;align-items:center;justify-content:center;font-size:13px;margin-bottom:7px;}
+    .stat-card .stat-value{font-size:17px;font-weight:800;line-height:1;}
+    .stat-card .stat-label{font-size:10px;color:var(--text-light);margin-top:3px;font-weight:500;}
+    .stat-card.blue .stat-icon{background:#DBEAFE;color:#1E40AF;}.stat-card.blue .stat-value{color:#1E40AF;}
+    .stat-card.red .stat-icon{background:#FEE2E2;color:#B91C1C;}.stat-card.red .stat-value{color:#B91C1C;}
+    .stat-card.orange .stat-icon{background:#FED7AA;color:#C2410C;}.stat-card.orange .stat-value{color:#C2410C;}
+    .stat-card.green .stat-icon{background:#D1FAE5;color:#065F46;}.stat-card.green .stat-value{color:#065F46;}
+
+    .kerawanan-item{margin-bottom:10px;}
+    .kerawanan-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:5px;}
+    .kerawanan-label{display:flex;align-items:center;gap:7px;font-size:12px;font-weight:600;}
+    .kerawanan-dot{width:10px;height:10px;border-radius:3px;flex-shrink:0;}
+    .kerawanan-pct{font-size:12px;font-weight:700;color:var(--text-secondary);}
+    .progress-bar{height:7px;background:#E2E8F0;border-radius:4px;overflow:hidden;}
+    .progress-fill{height:100%;border-radius:4px;transition:width 0.8s ease;}
+
+    .layer-item{
+      display:flex;align-items:center;justify-content:space-between;
+      padding:10px 12px;border-radius:var(--radius-sm);background:#F7FAFC;
+      border:1px solid var(--border);transition:var(--transition);cursor:pointer;
+    }
+    .layer-item:hover{border-color:var(--primary);background:#EBF5FB;}
+    .layer-item-left{display:flex;align-items:center;gap:10px;}
+    .layer-color-box{width:16px;height:16px;border-radius:4px;border:1.5px solid rgba(0,0,0,0.15);flex-shrink:0;}
+    .layer-name{font-size:12.5px;font-weight:500;}
+    .layer-desc{font-size:10px;color:var(--text-light);}
+    .toggle{position:relative;width:36px;height:20px;flex-shrink:0;}
+    .toggle input{opacity:0;width:0;height:0;}
+    .toggle-slider{position:absolute;inset:0;background:#CBD5E0;border-radius:10px;cursor:pointer;transition:0.3s;}
+    .toggle-slider::before{content:'';position:absolute;width:14px;height:14px;background:#fff;border-radius:50%;left:3px;top:3px;transition:0.3s;box-shadow:0 1px 3px rgba(0,0,0,0.2);}
+    .toggle input:checked+.toggle-slider{background:var(--primary);}
+    .toggle input:checked+.toggle-slider::before{transform:translateX(16px);}
+
+    .opacity-control{padding:4px 0;}
+    .opacity-label{display:flex;justify-content:space-between;font-size:11px;color:var(--text-light);margin-bottom:5px;}
+    input[type=range]{width:100%;height:4px;border-radius:2px;appearance:none;outline:none;cursor:pointer;background:linear-gradient(to right,var(--primary) 0%,var(--primary) 70%,#CBD5E0 70%);}
+    input[type=range]::-webkit-slider-thumb{appearance:none;width:14px;height:14px;border-radius:50%;background:var(--primary);border:2px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,0.25);}
+
+    .basemap-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;}
+    .basemap-btn{
+      border:2px solid var(--border);border-radius:var(--radius-sm);padding:10px 6px;
+      text-align:center;cursor:pointer;background:#F7FAFC;transition:var(--transition);
+      font-size:11px;font-weight:600;color:var(--text-secondary);
+    }
+    .basemap-btn i{display:block;font-size:18px;margin-bottom:4px;color:var(--text-light);}
+    .basemap-btn.active,.basemap-btn:hover{border-color:var(--primary);color:var(--primary);background:#EBF4FF;}
+    .basemap-btn.active i,.basemap-btn:hover i{color:var(--primary);}
+
+    #kec-info-panel{background:linear-gradient(135deg,#EBF5FB 0%,#DBEAFE 100%);border:1px solid #BFDBFE;border-radius:var(--radius-md);padding:14px;}
+    #kec-info-panel h3{font-size:13px;font-weight:700;color:var(--primary-dark);margin-bottom:10px;}
+    .kec-stat-row{display:flex;justify-content:space-between;font-size:11.5px;padding:4px 0;border-bottom:1px dashed #BFDBFE;}
+    .kec-stat-row:last-child{border-bottom:none;}
+    .kec-stat-row .kec-key{color:var(--text-secondary);font-weight:500;}
+    .kec-stat-row .kec-val{font-weight:700;color:var(--text-primary);}
+    .badge-rawan{display:inline-block;padding:2px 10px;border-radius:20px;font-size:10.5px;font-weight:700;letter-spacing:0.04em;}
+    .badge-rawan.tinggi{background:#FEE2E2;color:#991B1B;}
+    .badge-rawan.sedang{background:#FEF3C7;color:#92400E;}
+    .badge-rawan.rendah{background:#D1FAE5;color:#065F46;}
+
+    /* MAIN */
+    #main{flex:1;display:flex;flex-direction:column;overflow:hidden;position:relative;}
+    #map{flex:1;width:100%;z-index:1;}
+
+    /* Leaflet overrides */
+    .leaflet-popup-content-wrapper{border-radius:var(--radius-md) !important;box-shadow:var(--shadow-lg) !important;font-family:'Inter',sans-serif !important;}
+    .leaflet-popup-content{font-size:12px !important;margin:10px 14px !important;}
+    .popup-title{font-weight:700;font-size:14px;color:var(--primary-dark);margin-bottom:8px;border-bottom:2px solid var(--primary);padding-bottom:6px;}
+    .popup-row{display:flex;justify-content:space-between;padding:3px 0;font-size:12px;}
+    .popup-key{color:var(--text-secondary);}
+    .popup-val{font-weight:600;color:var(--text-primary);}
+
+    /* CHART PANEL */
+    #chart-panel{
+      height:var(--panel-h);background:var(--bg-surface);
+      border-top:1px solid var(--border);display:flex;flex-direction:column;
+      box-shadow:0 -4px 16px rgba(0,0,0,0.08);overflow:hidden;flex-shrink:0;
+      transition:height 0.3s ease;
+    }
+    #chart-panel.collapsed{height:0;}
+    .chart-panel-header{display:flex;align-items:center;justify-content:space-between;padding:10px 16px 0;flex-shrink:0;}
+    .chart-panel-title{display:flex;align-items:center;gap:8px;}
+    .chart-panel-title h2{font-size:13px;font-weight:700;color:var(--text-primary);}
+    .chart-panel-title span{font-size:11px;color:var(--text-light);font-weight:400;}
+    .chart-controls{display:flex;align-items:center;gap:8px;}
+    .chart-select{border:1px solid var(--border);border-radius:var(--radius-sm);padding:4px 10px;font-size:11.5px;font-family:'Inter',sans-serif;color:var(--text-primary);background:#F7FAFC;outline:none;cursor:pointer;}
+    .chart-select:focus{border-color:var(--primary);}
+    .chart-body{flex:1;display:grid;grid-template-columns:1fr 220px;gap:0;overflow:hidden;padding:8px 12px 12px;}
+    #ndwi-chart{width:100%;}
+    .chart-legend-panel{padding-left:12px;border-left:1px solid var(--border);display:flex;flex-direction:column;gap:10px;overflow-y:auto;}
+    .chart-legend-panel h4{font-size:10px;font-weight:700;color:var(--text-light);text-transform:uppercase;letter-spacing:0.06em;}
+    .legend-row{display:flex;align-items:center;gap:8px;font-size:11px;}
+    .legend-line{width:20px;height:3px;border-radius:2px;flex-shrink:0;}
+    .ndwi-stat-box{background:#F7FAFC;border:1px solid var(--border);border-radius:var(--radius-sm);padding:10px;}
+    .ndwi-stat-box .nsb-title{font-size:10px;font-weight:700;color:var(--text-light);text-transform:uppercase;margin-bottom:7px;}
+    .ndwi-row{display:flex;justify-content:space-between;font-size:11.5px;padding:2px 0;}
+    .ndwi-row .nk{color:var(--text-secondary);}
+    .ndwi-row .nv{font-weight:700;color:var(--text-primary);}
+
+    /* MAP OVERLAYS */
+    #map-legend{
+      position:absolute;bottom:30px;left:16px;z-index:500;
+      background:rgba(255,255,255,0.97);border:1px solid var(--border);
+      border-radius:var(--radius-md);padding:12px 14px;box-shadow:var(--shadow-md);
+      min-width:160px;backdrop-filter:blur(6px);
+    }
+    #map-legend h4{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.07em;color:var(--text-light);margin-bottom:10px;}
+    .legend-item{display:flex;align-items:center;gap:8px;margin-bottom:7px;font-size:11.5px;font-weight:500;}
+    .legend-swatch{width:18px;height:12px;border-radius:3px;flex-shrink:0;}
+    .legend-item:last-child{margin-bottom:0;}
+    .leaflet-bottom.leaflet-left{bottom:250px !important;left:16px !important;z-index:490 !important;}
+    .leaflet-control-scale-line{border:2px solid #1A2332 !important;border-top:none !important;font-family:'Inter',sans-serif !important;font-size:10px !important;font-weight:600 !important;color:#1A2332 !important;background:rgba(255,255,255,0.92) !important;padding:2px 6px !important;border-radius:0 0 3px 3px !important;box-shadow:var(--shadow-sm) !important;}
+
+    #map-fab{position:absolute;right:14px;top:14px;z-index:500;display:flex;flex-direction:column;gap:8px;}
+    .fab-btn{
+      width:38px;height:38px;border-radius:9px;background:rgba(255,255,255,0.95);
+      border:1px solid var(--border);display:flex;align-items:center;justify-content:center;
+      cursor:pointer;font-size:14px;color:var(--text-secondary);box-shadow:var(--shadow-sm);transition:var(--transition);
+    }
+    .fab-btn:hover{background:var(--primary);color:#fff;border-color:var(--primary);transform:scale(1.05);}
+
+    #coords-display{
+      position:absolute;bottom:8px;left:50%;transform:translateX(-50%);z-index:500;
+      background:rgba(0,0,0,0.65);color:#fff;font-size:10.5px;font-family:monospace;
+      padding:4px 12px;border-radius:20px;pointer-events:none;backdrop-filter:blur(4px);
+    }
+    #chart-toggle-btn{
+      display:flex;align-items:center;justify-content:center;gap:8px;
+      width:100%;padding:9px 16px;margin:8px 0 4px;
+      background:var(--primary);color:#fff;
+      border:none;border-radius:var(--radius-md);font-size:12px;font-weight:600;
+      cursor:pointer;box-shadow:var(--shadow-sm);transition:var(--transition);font-family:'Inter',sans-serif;
+    }
+    #chart-toggle-btn:hover{background:var(--primary-dark);box-shadow:var(--shadow-md);transform:translateY(-1px);}
+    #chart-toggle-btn.active{background:var(--accent);}
+
+    #sidebar-toggle{
+      position:absolute;left:calc(var(--sidebar-w) + 8px);top:50%;transform:translateY(-50%);z-index:200;
+      width:22px;height:48px;border-radius:0 6px 6px 0;background:var(--bg-surface);
+      border:1px solid var(--border);border-left:none;cursor:pointer;font-size:11px;
+      display:flex;align-items:center;justify-content:center;color:var(--text-light);
+      transition:var(--transition);box-shadow:2px 0 6px rgba(0,0,0,0.08);
+    }
+    #sidebar-toggle:hover{color:var(--primary);}
+
+    /* LOADING */
+    #loading-overlay{
+      position:fixed;inset:0;z-index:9999;
+      background:linear-gradient(135deg,#0D47A1 0%,#1565C0 50%,#0288D1 100%);
+      display:flex;flex-direction:column;align-items:center;justify-content:center;gap:20px;
+      transition:opacity 0.5s;
+    }
+    #loading-overlay.fade-out{opacity:0;pointer-events:none;}
+    .loading-icon{font-size:48px;color:rgba(255,255,255,0.9);animation:pulse 1.2s ease-in-out infinite;}
+    .loading-title{font-size:20px;font-weight:700;color:#fff;text-align:center;}
+    .loading-sub{font-size:13px;color:rgba(255,255,255,0.7);text-align:center;}
+    .loading-bar-wrap{width:240px;height:4px;background:rgba(255,255,255,0.2);border-radius:2px;overflow:hidden;}
+    .loading-bar{height:100%;background:#fff;border-radius:2px;animation:loadbar 1.8s ease-in-out infinite;}
+    @keyframes loadbar{0%{width:0%}50%{width:70%}100%{width:100%}}
+    @keyframes pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:0.7;transform:scale(0.92)}}
+
+    .btn-filter{
+      flex:1;padding:6px 4px;border-radius:var(--radius-sm);border:1.5px solid var(--border);
+      background:#F7FAFC;font-size:11px;font-weight:600;cursor:pointer;
+      font-family:'Inter',sans-serif;color:var(--text-secondary);transition:var(--transition);
+    }
+    .btn-filter:hover{background:var(--fc,var(--primary));border-color:var(--fc,var(--primary));color:#fff;}
+    .btn-filter.active{background:var(--fc,var(--primary));border-color:var(--fc,var(--primary));color:#fff;}
+    .btn-filter#f-all.active{background:var(--primary);border-color:var(--primary);color:#fff;}
+
+    /* MODAL LAYOUT PETA */
+    .modal-backdrop{
+      position:fixed;inset:0;z-index:9990;
+      background:rgba(10,25,47,0.75);backdrop-filter:blur(6px);
+      display:none;align-items:center;justify-content:center;
+      opacity:0;transition:opacity 0.25s ease;
+      padding:16px;
+    }
+    .modal-backdrop.show{
+      display:flex;opacity:1;
+    }
+    .modal-dialog{
+      background:var(--bg-surface);border-radius:var(--radius-lg);
+      box-shadow:0 24px 48px rgba(0,0,0,0.35);border:1px solid var(--border);
+      width:95vw;max-width:1300px;max-height:92vh;
+      display:flex;flex-direction:column;overflow:hidden;
+      animation:modalZoomIn 0.25s cubic-bezier(0.16,1,0.3,1);
+    }
+    @keyframes modalZoomIn{
+      from{transform:scale(0.95);opacity:0;}
+      to{transform:scale(1);opacity:1;}
+    }
+    .modal-header{
+      padding:12px 18px;background:#FAFCFE;border-bottom:1px solid var(--border);
+      display:flex;align-items:center;justify-content:space-between;gap:12px;
+      flex-shrink:0;
+    }
+    .modal-title{
+      display:flex;align-items:center;gap:10px;font-size:13.5px;font-weight:700;color:var(--text-primary);
+    }
+    .modal-title i{color:var(--primary);font-size:16px;}
+    .badge-a4{
+      background:#E3F2FD;color:var(--primary-dark);font-size:11px;font-weight:600;
+      padding:3px 10px;border-radius:12px;border:1px solid #BBDEFB;
+    }
+    .modal-actions{display:flex;align-items:center;gap:8px;}
+    .modal-btn{
+      display:inline-flex;align-items:center;gap:6px;
+      padding:6px 12px;border-radius:var(--radius-sm);font-size:11.5px;font-weight:600;
+      font-family:'Inter',sans-serif;text-decoration:none;cursor:pointer;
+      border:none;transition:var(--transition);
+    }
+    .btn-print{background:var(--primary);color:#fff;}
+    .btn-print:hover{background:var(--primary-dark);transform:translateY(-1px);}
+    .btn-download{background:#F0F4F8;color:var(--text-primary);border:1px solid var(--border);}
+    .btn-download:hover{background:#E2E8F0;border-color:#CBD5E1;transform:translateY(-1px);}
+    .btn-newtab{background:#F0F4F8;color:var(--text-secondary);border:1px solid var(--border);padding:6px 10px;}
+    .btn-newtab:hover{background:#E2E8F0;color:var(--text-primary);}
+    .modal-close{
+      background:none;border:none;font-size:22px;line-height:1;color:var(--text-light);
+      cursor:pointer;padding:4px 8px;border-radius:6px;transition:var(--transition);
+    }
+    .modal-close:hover{color:var(--danger);background:#FFEBEE;}
+    .modal-body{
+      flex:1;overflow:auto;padding:14px;background:#EBF0F6;
+      display:flex;align-items:center;justify-content:center;
+    }
+    .layout-img-container{
+      max-width:100%;display:flex;justify-content:center;align-items:center;
+      box-shadow:0 8px 24px rgba(0,0,0,0.18);border-radius:4px;overflow:hidden;
+      background:#fff;
+    }
+    .layout-img-container img{
+      display:block;max-width:100%;max-height:calc(92vh - 120px);
+      width:auto;height:auto;object-fit:contain;
+    }
+    .modal-footer{
+      padding:8px 18px;background:#FAFCFE;border-top:1px solid var(--border);
+      display:flex;align-items:center;justify-content:space-between;
+      font-size:11px;color:var(--text-secondary);flex-shrink:0;
+    }
+    .modal-info{display:flex;align-items:center;gap:6px;}
+    .modal-info i{color:var(--accent);}
+    .modal-info-right{font-weight:600;color:var(--text-light);}
+
+    /* PRINT STYLES - CETAK HANYA GAMBAR LAYOUT PETA A4 RESMI */
+    #print-layout-container{display:none;}
+    @media print{
+      @page{size:A4 landscape;margin:0;}
+      html,body{background:#fff !important;margin:0 !important;padding:0 !important;overflow:visible !important;height:100% !important;}
+      #header,#app,#loading-overlay,.modal-backdrop{display:none !important;}
+      #print-layout-container{
+        display:flex !important;align-items:center;justify-content:center;
+        position:fixed;top:0;left:0;width:100vw;height:100vh;
+        background:#fff;z-index:999999;
+      }
+      #print-layout-container img{
+        width:100%;height:100%;object-fit:contain;
+      }
+    }
+  </style>
+</head>
+<body>
+
+<div id="loading-overlay">
+  <div class="loading-icon"><i class="fas fa-water"></i></div>
+  <div class="loading-title">WebGIS Sebaran Genangan<br>Kota Pontianak</div>
+  <div class="loading-sub">Memuat data kerawanan banjir NDWI...</div>
+  <div class="loading-bar-wrap"><div class="loading-bar"></div></div>
+</div>
+
+<header id="header">
+  <div class="header-left">
+    <div class="logo-box"><i class="fas fa-water"></i></div>
+    <div class="title-box">
+      <h1>WebGIS Sebaran Genangan &amp; Daerah Rawan Banjir Kota Pontianak</h1>
+      <p><i class="fas fa-graduation-cap" style="margin-right:4px"></i>Analisis Time-Series NDWI &nbsp;|&nbsp; Gemilang Imanuel Perdana (D1041221024) &nbsp;|&nbsp; Universitas Tanjungpura</p>
+    </div>
+  </div>
+  <div class="header-right">
+    <div class="header-badge"><i class="fas fa-satellite-dish" style="margin-right:6px"></i>Sentinel-2 &bull; GEE</div>
+    <div class="header-badge"><i class="fas fa-clock" style="margin-right:6px"></i>2020–2024</div>
+    <button class="btn-icon" onclick="showAbout()" title="Informasi Penelitian"><i class="fas fa-info-circle"></i></button>
+    <button class="btn-icon" onclick="openLayoutModal()" title="Lihat &amp; Cetak Layout Peta Formal (A4 Standar Kartografi)"><i class="fas fa-print"></i></button>
+  </div>
+</header>
+
+<!-- PRINT CONTAINER (HANYA DITAMPILKAN SAAT PRINT) -->
+<div id="print-layout-container">
+  <img src="assets/Layout_Peta_Kerawanan_Full.png" alt="Layout Peta Kerawanan Banjir Kota Pontianak" />
+</div>
+
+<!-- MODAL PREVIEW & CETAK LAYOUT PETA -->
+<div id="layout-modal" class="modal-backdrop">
+  <div class="modal-dialog">
+    <div class="modal-header">
+      <div class="modal-title">
+        <i class="fas fa-map-marked-alt"></i>
+        <span>Layout Peta Kerawanan Banjir Kota Pontianak</span>
+        <span class="badge-a4">Format Cetak A4 Landscape &bull; Standar Kartografi</span>
+      </div>
+      <div class="modal-actions">
+        <button class="modal-btn btn-print" onclick="printLayoutMap()" title="Cetak Layout Peta Langsung">
+          <i class="fas fa-print"></i> Cetak Peta
+        </button>
+        <a href="assets/Layout_Peta_Kerawanan_Full.png" download="Layout_Peta_Kerawanan_Banjir_Kota_Pontianak.png" class="modal-btn btn-download" title="Unduh Resolusi Asli 300 DPI (3507x2480)">
+          <i class="fas fa-download"></i> Unduh PNG HD
+        </a>
+        <a href="assets/Layout_Peta_Kerawanan_Full.png" target="_blank" class="modal-btn btn-newtab" title="Buka Gambar Resolusi Penuh di Tab Baru">
+          <i class="fas fa-external-link-alt"></i> Tab Baru
+        </a>
+        <button class="modal-close" onclick="closeLayoutModal()" title="Tutup (Esc)">&times;</button>
+      </div>
+    </div>
+    <div class="modal-body">
+      <div class="layout-img-container">
+        <img src="assets/Layout_Peta_Kerawanan_Full.png" alt="Layout Peta Kerawanan Banjir Kota Pontianak" id="layout-img" />
+      </div>
+    </div>
+    <div class="modal-footer">
+      <div class="modal-info">
+        <i class="fas fa-info-circle"></i> Hasil Analisis Time-Series NDWI (2020–2024), Proyeksi WGS 84 UTM Zona 49S, Kota Pontianak.
+      </div>
+      <div class="modal-info-right">
+        Dimensi: 3507 &times; 2480 px (300 DPI) &bull; Format: A4 Landscape
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="app">
+  <aside id="sidebar">
+    <div class="sidebar-tabs">
+      <button class="tab-btn active" onclick="switchTab('statistik',this)"><i class="fas fa-chart-bar"></i>Statistik</button>
+      <button class="tab-btn" onclick="switchTab('layer',this)"><i class="fas fa-layer-group"></i>Layer</button>
+      <button class="tab-btn" onclick="switchTab('info',this)"><i class="fas fa-map-marker-alt"></i>Info Area</button>
+    </div>
+
+    <div class="tab-panel active" id="tab-statistik">
+      <div class="section-title"><i class="fas fa-city" style="margin-right:6px"></i>Ringkasan Kota Pontianak</div>
+      <div class="stat-grid">
+        <div class="stat-card blue"><div class="stat-icon"><i class="fas fa-map"></i></div><div class="stat-value">111,65</div><div class="stat-label">Luas Total (km²)</div></div>
+        <div class="stat-card red"><div class="stat-icon"><i class="fas fa-exclamation-triangle"></i></div><div class="stat-value">48,60</div><div class="stat-label">Rawan Tinggi (ha)</div></div>
+        <div class="stat-card orange"><div class="stat-icon"><i class="fas fa-minus-circle"></i></div><div class="stat-value">127,31</div><div class="stat-label">Rawan Sedang (ha)</div></div>
+        <div class="stat-card green"><div class="stat-icon"><i class="fas fa-check-circle"></i></div><div class="stat-value">606,21</div><div class="stat-label">Rawan Rendah (ha)</div></div>
+      </div>
+      <div class="section-title"><i class="fas fa-percentage" style="margin-right:6px"></i>Distribusi Kerawanan Banjir</div>
+      <div>
+        <div class="kerawanan-item"><div class="kerawanan-header"><div class="kerawanan-label"><div class="kerawanan-dot" style="background:#EEEEEE;border:1px solid #BDBDBD"></div>Tidak Pernah Tergenang</div><span class="kerawanan-pct">92,99%</span></div><div class="progress-bar"><div class="progress-fill" style="width:92.99%;background:#BDBDBD"></div></div></div>
+        <div class="kerawanan-item"><div class="kerawanan-header"><div class="kerawanan-label"><div class="kerawanan-dot" style="background:var(--rawan-rendah)"></div>Rawan Rendah</div><span class="kerawanan-pct">5,43%</span></div><div class="progress-bar"><div class="progress-fill" style="width:5.43%;background:var(--rawan-rendah)"></div></div></div>
+        <div class="kerawanan-item"><div class="kerawanan-header"><div class="kerawanan-label"><div class="kerawanan-dot" style="background:var(--rawan-sedang)"></div>Rawan Sedang</div><span class="kerawanan-pct">1,14%</span></div><div class="progress-bar"><div class="progress-fill" style="width:1.14%;background:var(--rawan-sedang)"></div></div></div>
+        <div class="kerawanan-item"><div class="kerawanan-header"><div class="kerawanan-label"><div class="kerawanan-dot" style="background:var(--rawan-tinggi)"></div>Rawan Tinggi</div><span class="kerawanan-pct">0,44%</span></div><div class="progress-bar"><div class="progress-fill" style="width:0.44%;background:var(--rawan-tinggi)"></div></div></div>
+      </div>
+      <div class="section-title"><i class="fas fa-table" style="margin-right:6px"></i>Data Per Kecamatan</div>
+      <table style="width:100%;border-collapse:collapse;font-size:11px;">
+        <thead><tr style="background:#EDF2F7;"><th style="padding:6px 8px;text-align:left;font-weight:700;color:#4A5568;border-bottom:2px solid #CBD5E0;">Kecamatan</th><th style="padding:6px 4px;text-align:center;font-weight:700;color:#4A5568;border-bottom:2px solid #CBD5E0;">Tergenang<br>(ha)</th><th style="padding:6px 4px;text-align:center;font-weight:700;color:#4A5568;border-bottom:2px solid #CBD5E0;">% Wilayah</th></tr></thead>
+        <tbody id="kec-tbody"></tbody>
+      </table>
+    </div>
+
+    <div class="tab-panel" id="tab-layer">
+      <div class="section-title"><i class="fas fa-th-large" style="margin-right:6px"></i>Basemap</div>
+      <div class="basemap-grid">
+        <div class="basemap-btn active" onclick="setBasemap('osm',this)"><i class="fas fa-map"></i>OpenStreetMap</div>
+        <div class="basemap-btn" onclick="setBasemap('satellite',this)"><i class="fas fa-satellite"></i>Satellite</div>
+        <div class="basemap-btn" onclick="setBasemap('topo',this)"><i class="fas fa-mountain"></i>Topografi</div>
+        <div class="basemap-btn" onclick="setBasemap('dark',this)"><i class="fas fa-moon"></i>Dark Mode</div>
+      </div>
+      <div class="section-title"><i class="fas fa-layer-group" style="margin-right:6px"></i>Layer Tematik</div>
+      <div style="display:flex;flex-direction:column;gap:8px;">
+        <div class="layer-item"><div class="layer-item-left"><div class="layer-color-box" style="background:var(--rawan-tinggi);opacity:0.75;"></div><div><div class="layer-name">Kerawanan Banjir</div><div class="layer-desc">Hasil klasifikasi frekuensi genangan</div></div></div><label class="toggle"><input type="checkbox" id="toggle-kerawanan" checked onchange="toggleLayer('kerawanan',this)"><span class="toggle-slider"></span></label></div>
+        <div class="layer-item"><div class="layer-item-left"><div class="layer-color-box" style="background:#1A1A1A;opacity:0.8;"></div><div><div class="layer-name">Batas Administrasi</div><div class="layer-desc">Wilayah kecamatan Kota Pontianak</div></div></div><label class="toggle"><input type="checkbox" id="toggle-batas" checked onchange="toggleLayer('batas',this)"><span class="toggle-slider"></span></label></div>
+        <div class="layer-item"><div class="layer-item-left"><div class="layer-color-box" style="background:#81D4FA;border:1.5px solid #0288D1;"></div><div><div class="layer-name">Badan Air (Sungai)</div><div class="layer-desc">Sungai Kapuas, Landak, Tempayan</div></div></div><label class="toggle"><input type="checkbox" id="toggle-sungai" checked onchange="toggleLayer('sungai',this)"><span class="toggle-slider"></span></label></div>
+        <div class="layer-item"><div class="layer-item-left"><div class="layer-color-box" style="background:#6B7280;"></div><div><div class="layer-name">Label Kecamatan</div><div class="layer-desc">Nama wilayah di peta</div></div></div><label class="toggle"><input type="checkbox" id="toggle-label" checked onchange="toggleLayer('label',this)"><span class="toggle-slider"></span></label></div>
+      </div>
+      <div class="section-title"><i class="fas fa-adjust" style="margin-right:6px"></i>Transparansi Layer</div>
+      <div class="opacity-control"><div class="opacity-label"><span>Opacity Layer Kerawanan</span><span id="opacity-val">70%</span></div><input type="range" min="10" max="100" value="70" oninput="setLayerOpacity(this)" /></div>
+      <div class="section-title"><i class="fas fa-filter" style="margin-right:6px"></i>Filter Kerawanan</div>
+      <div style="display:flex;gap:6px;">
+        <button class="btn-filter active" id="f-all" onclick="filterKerawanan('all',this)">Semua</button>
+        <button class="btn-filter" id="f-tinggi" onclick="filterKerawanan('Rawan Tinggi',this)" style="--fc:var(--rawan-tinggi)">Tinggi</button>
+        <button class="btn-filter" id="f-sedang" onclick="filterKerawanan('Rawan Sedang',this)" style="--fc:var(--rawan-sedang)">Sedang</button>
+        <button class="btn-filter" id="f-rendah" onclick="filterKerawanan('Rawan Rendah',this)" style="--fc:var(--rawan-rendah)">Rendah</button>
+      </div>
+    </div>
+
+    <div class="tab-panel" id="tab-info">
+      <div class="section-title"><i class="fas fa-mouse-pointer" style="margin-right:6px"></i>Klik Area di Peta</div>
+      <div id="kec-info-panel">
+        <h3 id="kec-info-name"><i class="fas fa-hand-pointer" style="margin-right:6px;color:var(--accent)"></i>Pilih Kecamatan</h3>
+        <p id="kec-info-empty" style="font-size:11.5px;color:var(--text-light);line-height:1.6;">Klik pada salah satu kecamatan di peta untuk melihat informasi detail dan statistik kerawanan banjirnya.</p>
+        <div id="kec-info-detail" style="display:none;">
+          <div class="kec-stat-row"><span class="kec-key">Kecamatan</span><span class="kec-val" id="ki-nama">-</span></div>
+          <div class="kec-stat-row"><span class="kec-key">Luas Wilayah</span><span class="kec-val" id="ki-luas">-</span></div>
+          <div class="kec-stat-row"><span class="kec-key">Total Tergenang</span><span class="kec-val" id="ki-luas-rawan">-</span></div>
+          <div class="kec-stat-row"><span class="kec-key">% Wilayah Tergenang</span><span class="kec-val" id="ki-pct">-</span></div>
+          <div class="kec-stat-row"><span class="kec-key">Rawan Rendah</span><span class="kec-val" id="ki-rendah">-</span></div>
+          <div class="kec-stat-row"><span class="kec-key">Rawan Sedang</span><span class="kec-val" id="ki-sedang">-</span></div>
+          <div class="kec-stat-row"><span class="kec-key">Rawan Tinggi</span><span class="kec-val" id="ki-tinggi">-</span></div>
+          <div class="kec-stat-row"><span class="kec-key">% Rawan Tinggi</span><span class="kec-val" id="ki-pct-tinggi">-</span></div>
+        </div>
+      </div>
+      <div class="section-title" style="margin-top:4px"><i class="fas fa-chart-bar" style="margin-right:6px"></i>Grafik &amp; Distribusi</div>
+      <button id="chart-toggle-btn" onclick="toggleChart()"><i class="fas fa-chart-bar"></i><span id="chart-toggle-label">Tampilkan Grafik Kerawanan</span></button>
+      <div style="background:#F7FAFC;border:1px solid var(--border);border-radius:var(--radius-sm);padding:10px;">
+        <canvas id="mini-chart" height="120" style="display:none;"></canvas>
+        <div id="mini-chart-empty" style="text-align:center;font-size:11px;color:var(--text-light);padding:20px 0;"><i class="fas fa-chart-bar" style="font-size:24px;color:#CBD5E0;display:block;margin-bottom:8px"></i>Pilih kecamatan di peta</div>
+      </div>
+    </div>
+  </aside>
+
+  <button id="sidebar-toggle" onclick="toggleSidebar()"><i class="fas fa-chevron-left" id="sidebar-toggle-icon"></i></button>
+
+  <div id="main">
+    <div id="map-wrap" style="flex:1;position:relative;overflow:hidden;min-height:0;">
+      <div id="map" style="width:100%;height:100%;"></div>
+      <div id="map-legend">
+        <h4>Kerawanan Banjir</h4>
+        <div class="legend-item"><div class="legend-swatch" style="background:#EEEEEE;border:1px solid #BDBDBD;"></div><span>Tidak Pernah Tergenang</span></div>
+        <div class="legend-item"><div class="legend-swatch" style="background:#FDD835;opacity:0.85;"></div><span>Rawan Rendah</span></div>
+        <div class="legend-item"><div class="legend-swatch" style="background:#FF8F00;opacity:0.85;"></div><span>Rawan Sedang</span></div>
+        <div class="legend-item"><div class="legend-swatch" style="background:#D32F2F;opacity:0.85;"></div><span>Rawan Tinggi</span></div>
+        <div class="legend-item"><div class="legend-swatch" style="background:#81D4FA;border:1px solid #0288D1;"></div><span>Badan Air</span></div>
+        <div style="border-top:1px solid var(--border);margin-top:8px;padding-top:8px;">
+          <div class="legend-item"><div class="legend-swatch" style="background:transparent;border:2px solid #1A1A1A;"></div><span>Batas Administrasi</span></div>
+        </div>
+        <div style="font-size:9.5px;color:var(--text-light);margin-top:6px;padding-top:6px;border-top:1px solid var(--border);display:flex;align-items:center;gap:4px;"><i class="fas fa-globe-asia" style="color:var(--primary)"></i>UTM WGS 84 Zona 49S</div>
+      </div>
+      <div id="map-fab">
+        <div class="fab-btn" style="cursor:default;flex-direction:column;gap:1px;font-size:9.5px;font-weight:800;color:#1A2332;" title="Arah Utara"><i class="fas fa-location-arrow" style="transform:rotate(-45deg);font-size:12px;color:#D32F2F;"></i>U</div>
+        <button class="fab-btn" onclick="map.zoomIn()" title="Perbesar"><i class="fas fa-plus"></i></button>
+        <button class="fab-btn" onclick="map.zoomOut()" title="Perkecil"><i class="fas fa-minus"></i></button>
+        <button class="fab-btn" onclick="resetView()" title="Tampilan Awal"><i class="fas fa-home"></i></button>
+        <button class="fab-btn" onclick="locateUser()" title="Lokasi Saya"><i class="fas fa-crosshairs"></i></button>
+      </div>
+
+      <div id="coords-display">Lat: -0.0250 &nbsp;|&nbsp; Lng: 109.3400</div>
+    </div>
+    <div id="chart-panel" class="collapsed">
+      <div class="chart-panel-header">
+        <div class="chart-panel-title"><i class="fas fa-chart-bar" style="color:var(--primary);font-size:16px"></i><h2>Distribusi Luas Kerawanan Banjir</h2><span>Luas area terdampak per kecamatan (ha) &nbsp;|&nbsp; Data: Hasil analisis NDWI 2020–2024</span></div>
+        <div class="chart-controls">
+          <button class="fab-btn" onclick="toggleChart()" style="width:28px;height:28px;"><i class="fas fa-times" style="font-size:11px"></i></button>
+        </div>
+      </div>
+      <div class="chart-body">
+        <canvas id="ndwi-chart"></canvas>
+        <div class="chart-legend-panel">
+          <h4>Kelas Kerawanan</h4>
+          <div class="legend-row"><div class="legend-line" style="background:#FDD835;height:10px;border-radius:2px;"></div><span>Rawan Rendah</span></div>
+          <div class="legend-row"><div class="legend-line" style="background:#FF8F00;height:10px;border-radius:2px;"></div><span>Rawan Sedang</span></div>
+          <div class="legend-row"><div class="legend-line" style="background:#D32F2F;height:10px;border-radius:2px;"></div><span>Rawan Tinggi</span></div>
+          <div class="ndwi-stat-box" style="margin-top:4px;">
+            <div class="nsb-title">Total Kota Pontianak</div>
+            <div class="ndwi-row"><span class="nk">Rawan Rendah</span><span class="nv" style="color:#B8860B;">606,21 ha</span></div>
+            <div class="ndwi-row"><span class="nk">Rawan Sedang</span><span class="nv" style="color:#E65100;">127,31 ha</span></div>
+            <div class="ndwi-row"><span class="nk">Rawan Tinggi</span><span class="nv" style="color:#B71C1C;">48,60 ha</span></div>
+            <div class="ndwi-row"><span class="nk">Total Tergenang</span><span class="nv">782,52 ha</span></div>
+          </div>
+          <div class="ndwi-stat-box">
+            <div class="nsb-title">Klasifikasi Frekuensi</div>
+            <div class="ndwi-row"><span class="nk">Kelas 0 (0 bln)</span><span class="nv">Tdk Tergenang</span></div>
+            <div class="ndwi-row"><span class="nk">Kelas 1 (1–3 bln)</span><span class="nv">Rendah</span></div>
+            <div class="ndwi-row"><span class="nk">Kelas 2 (4–13 bln)</span><span class="nv">Sedang</span></div>
+            <div class="ndwi-row"><span class="nk">Kelas 3 (14–38 bln)</span><span class="nv">Tinggi</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script>
+// Data penelitian asli: Distribusi Luas Kelas Kerawanan Banjir per Kecamatan
+const KEC_DATA = {
+  "Pontianak Barat":    {luas_ha:1420.81, rawan_rendah:144.01, rawan_sedang:19.43, rawan_tinggi:9.17,  total_tergenang:172.61, pct_tergenang:12.15, pct_rawan_tinggi:0.65},
+  "Pontianak Kota":     {luas_ha:1571.84, rawan_rendah:106.66, rawan_sedang:27.64, rawan_tinggi:8.71,  total_tergenang:143.01, pct_tergenang:9.10,  pct_rawan_tinggi:0.55},
+  "Pontianak Selatan":  {luas_ha:1620.05, rawan_rendah:144.59, rawan_sedang:32.68, rawan_tinggi:8.80,  total_tergenang:186.07, pct_tergenang:11.49, pct_rawan_tinggi:0.54},
+  "Pontianak Tenggara": {luas_ha:1599.43, rawan_rendah:105.36, rawan_sedang:15.34, rawan_tinggi:4.47,  total_tergenang:125.17, pct_tergenang:7.83,  pct_rawan_tinggi:0.28},
+  "Pontianak Timur":    {luas_ha:1092.32, rawan_rendah:35.44,  rawan_sedang:9.83,  rawan_tinggi:6.28,  total_tergenang:51.55,  pct_tergenang:4.72,  pct_rawan_tinggi:0.57},
+  "Pontianak Utara":    {luas_ha:3863.87, rawan_rendah:70.54,  rawan_sedang:22.40, rawan_tinggi:11.17, total_tergenang:104.11, pct_tergenang:2.69,  pct_rawan_tinggi:0.29}
+};
+
+// Data Klasifikasi Kerawanan Banjir Berdasarkan Frekuensi Genangan (Hasil Penelitian)
+const KELAS_INFO = {
+  'Tidak Pernah Tergenang': { rentang: '0 bulan (Kelas 0)', luas: '10.383,19 ha', pct: '92,99%' },
+  'Rawan Rendah':           { rentang: '1 – 3 bulan (Kelas 1)', luas: '606,21 ha', pct: '5,43%' },
+  'Rawan Sedang':           { rentang: '4 – 13 bulan (Kelas 2)', luas: '127,31 ha', pct: '1,14%' },
+  'Rawan Tinggi':           { rentang: '14 – 38 bulan (Kelas 3)', luas: '48,60 ha', pct: '0,44%' }
+};
+
+// MAP
+const PONTIANAK_CENTER = [-0.025, 109.340];
+const DEFAULT_ZOOM = 12;
+const map = L.map('map',{center:PONTIANAK_CENTER,zoom:DEFAULT_ZOOM,zoomControl:false,attributionControl:true});
+
+const basemaps = {
+  osm:       L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}',{attribution:'&copy; Esri &mdash; Esri, DeLorme, NAVTEQ',maxZoom:19}),
+  satellite: L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',{attribution:'&copy; Esri',maxZoom:19}),
+  topo:      L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer/tile/{z}/{y}/{x}',{attribution:'&copy; Esri',maxZoom:19}),
+  dark:      L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',{attribution:'&copy; CartoDB',maxZoom:19})
+};
+basemaps.osm.addTo(map);
+let currentBasemap='osm';
+
+let kerawananLayer=null,batasLayer=null,sungaiLayer=null;
+let labelMarkers=[];
+let kecLayers={};
+let layerOpacity=0.70,currentFilter='all';
+
+function getColor(k){
+  if(k==='Rawan Tinggi') return '#D32F2F';          // Merah
+  if(k==='Rawan Sedang') return '#FF8F00';          // Oranye
+  if(k==='Rawan Rendah') return '#FDD835';          // Kuning
+  if(k==='Tidak Pernah Tergenang') return '#EEEEEE'; // Abu-abu terang
+  if(k==='Badan Air') return '#4FC3F7';             // Biru muda
+  return '#CCCCCC';
+}
+
+function styleKer(f){
+  const k=getKelas(f.properties),c=getColor(k);
+  if(currentFilter!=='all'&&k!==currentFilter) return{fillOpacity:0,color:'transparent',weight:0,opacity:0};
+  // Tidak Pernah Tergenang: tampilkan dengan border tipis, fill sangat transparan
+  if(k==='Tidak Pernah Tergenang') return{fillColor:c,fillOpacity:0.15,color:'#BDBDBD',weight:0.5,opacity:0.6};
+  // Badan Air: biru muda
+  if(k==='Badan Air') return{fillColor:c,fillOpacity:layerOpacity,color:'#0288D1',weight:0.5,opacity:0.8};
+  return{fillColor:c,fillOpacity:layerOpacity,color:c,weight:0.5,opacity:0.8};
+}
+
+// Deteksi field KELAS yang fleksibel dari berbagai sumber QGIS
+function getKelas(props){
+  // Coba field KELAS langsung
+  if(props.KELAS) return props.KELAS;
+  // Coba dari field DN (hasil Polygonize)
+  if(props.DN!==undefined){
+    const dn=parseInt(props.DN);
+    if(dn===0||props.DN==='0') return 'Tidak Pernah Tergenang';
+    if(dn===1||props.DN==='1') return 'Rawan Rendah';
+    if(dn===2||props.DN==='2') return 'Rawan Sedang';
+    if(dn===3||props.DN==='3') return 'Rawan Tinggi';
+  }
+  // Coba field lain
+  if(props.Kelas_Ker) return props.Kelas_Ker;
+  if(props.kelas) return props.kelas;
+  if(props.CLASS) return props.CLASS;
+  return 'Tidak Diketahui';
+}
+
+// Deteksi nama kecamatan dari berbagai field
+function getKecNama(props){
+  return props.KECAMATAN||props.WADMKC||props.NAMOBJ||props.nama||props.NAME||props.name||'';
+}
+
+function buildPopup(p){
+  const kelas=getKelas(p);
+  const c=getColor(kelas);
+  const info=KELAS_INFO[kelas];
+  const bc=kelas==='Rawan Tinggi'?'tinggi':kelas==='Rawan Sedang'?'sedang':kelas==='Rawan Rendah'?'rendah':'rendah';
+  return `<div class="popup-title"><i class="fas fa-water" style="margin-right:6px;color:${c}"></i>${kelas}</div>
+  <div class="popup-row"><span class="popup-key">Kategori</span><span class="popup-val"><span class="badge-rawan ${bc}">${kelas}</span></span></div>
+  ${info?`
+  <div class="popup-row"><span class="popup-key">Frekuensi Genangan</span><span class="popup-val">${info.rentang}</span></div>
+  <div class="popup-row"><span class="popup-key">Luas Total Kota</span><span class="popup-val"><b>${info.luas}</b></span></div>
+  <div class="popup-row"><span class="popup-key">Proporsi Kota</span><span class="popup-val" style="font-weight:700;color:${c}">${info.pct}</span></div>
+  `:''}`;
+}
+
+async function loadLayers(){
+  // Layer 1: Kerawanan Banjir
+  try{
+    const r=await fetch('data/kerawanan_banjir.geojson');
+    if(!r.ok)throw new Error('HTTP '+r.status);
+    const g=await r.json();
+    kerawananLayer=L.geoJSON(g,{
+      style:styleKer,
+      onEachFeature:(f,l)=>{
+        l.bindPopup(buildPopup(f.properties),{maxWidth:280});
+        const kecName=getKecNama(f.properties);
+        if(kecName) l.on('click',()=>onKecClick(kecName));
+        // Spatial lookup: cari kecamatan yang mengandung titik klik
+        l.on('click',(e)=>{
+          if(!batasLayer)return;
+          let found=null;
+          batasLayer.eachLayer(bl=>{
+            if(found||!bl.feature)return;
+            try{
+              const bounds=bl.getBounds();
+              if(bounds.contains(e.latlng)){
+                const kn=getKecNama(bl.feature.properties);
+                if(kn)found=kn;
+              }
+            }catch(ex){}
+          });
+          if(found)onKecClick(found, false);
+        });
+        l.on('mouseover',function(){this.setStyle({weight:2.5,fillOpacity:Math.min(layerOpacity+0.2,1)});});
+        l.on('mouseout',function(){kerawananLayer.resetStyle(this);});
+      }
+    }).addTo(map);
+    // Auto zoom ke extent layer
+    if(kerawananLayer.getBounds().isValid()) map.fitBounds(kerawananLayer.getBounds(),{padding:[20,20]});
+    console.log('Kerawanan layer loaded:', g.features.length,'features');
+  }catch(e){console.warn('kerawanan.geojson tidak bisa dimuat, menggunakan data dummy',e);}
+
+  // Layer 2: Batas Kecamatan
+  try{
+    const r2=await fetch('data/batas_kecamatan.geojson');
+    if(!r2.ok)throw new Error('HTTP '+r2.status);
+    const g2=await r2.json();
+    batasLayer=L.geoJSON(g2,{
+      style:()=>({color:'#1A1A1A',weight:2,fillOpacity:0,dashArray:'none',opacity:0.9}),
+      onEachFeature:(f,l)=>{
+        const kecName=getKecNama(f.properties);
+        if(kecName){
+          kecLayers[kecName]=l;
+          l.on('click',()=>onKecClick(kecName));
+        }
+      }
+    }).addTo(map);
+    batasLayer.bringToFront();
+    // Label nama kecamatan
+    g2.features.forEach(f=>{
+      const kecName=getKecNama(f.properties);
+      if(!kecName)return;
+      try{
+        const center=L.geoJSON(f).getBounds().getCenter();
+        const icon=L.divIcon({
+          html:`<div style="font-size:10px;font-weight:700;color:#1A2332;text-shadow:0 1px 3px rgba(255,255,255,0.9),0 -1px 3px rgba(255,255,255,0.9);white-space:nowrap;text-align:center;pointer-events:none;">${kecName}</div>`,
+          className:'',iconAnchor:[50,10],iconSize:[100,20]
+        });
+        labelMarkers.push(L.marker(center,{icon,interactive:false}).addTo(map));
+      }catch(ex){}
+    });
+    console.log('Batas kecamatan loaded:', g2.features.length,'features');
+  }catch(e){console.warn('batas_kecamatan.geojson tidak bisa dimuat',e);}
+
+  // Layer 3: Sungai - coba dari GeoJSON dulu, fallback ke garis approximate
+  let sungaiLoaded=false;
+  try{
+    const r3=await fetch('data/sungai.geojson');
+    if(!r3.ok)throw new Error('HTTP '+r3.status);
+    const g3=await r3.json();
+    sungaiLayer=L.geoJSON(g3,{
+      style:(f)=>({color:'#0288D1',weight:1.2,opacity:0.9,fillColor:'#81D4FA',fillOpacity:0.85}),
+      onEachFeature:(f,l)=>{
+        const nama=f.properties.NAMOBJ||f.properties.nama||f.properties.NAME||f.properties.name||'Badan Air / Sungai';
+        l.bindTooltip(nama,{sticky:true});
+      }
+    }).addTo(map);
+    sungaiLoaded=true;
+    if(batasLayer) batasLayer.bringToFront();
+    console.log('Sungai layer loaded');
+  }catch(e){console.warn('sungai.geojson tidak ditemukan, menggunakan garis approximate',e);}
+
+  if(!sungaiLoaded){
+    // Tidak ada fallback hardcoded — tunggu user masukkan sungai.geojson
+    console.log('sungai.geojson belum tersedia. Tambahkan file sungai.geojson ke folder data/ untuk menampilkan layer sungai.');
+    sungaiLayer = null;
+  }
+}
+
+function toggleLayer(name,chk){
+  if(name==='kerawanan'&&kerawananLayer){chk.checked?kerawananLayer.addTo(map):map.removeLayer(kerawananLayer);}
+  else if(name==='batas'&&batasLayer){chk.checked?batasLayer.addTo(map):map.removeLayer(batasLayer);}
+  else if(name==='sungai'&&sungaiLayer){chk.checked?sungaiLayer.addTo(map):map.removeLayer(sungaiLayer);}
+  else if(name==='label'){labelMarkers.forEach(m=>chk.checked?m.addTo(map):map.removeLayer(m));}
+}
+
+function setBasemap(name,btn){
+  if(currentBasemap===name)return;
+  map.removeLayer(basemaps[currentBasemap]);
+  basemaps[name].addTo(map);
+  currentBasemap=name;
+  document.querySelectorAll('.basemap-btn').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+}
+
+function setLayerOpacity(input){
+  layerOpacity=input.value/100;
+  document.getElementById('opacity-val').textContent=input.value+'%';
+  input.style.background=`linear-gradient(to right,var(--primary) 0%,var(--primary) ${input.value}%,#CBD5E0 ${input.value}%)`;
+  if(kerawananLayer)kerawananLayer.setStyle(styleKer);
+}
+
+function filterKerawanan(kelas,btn){
+  currentFilter=kelas;
+  document.querySelectorAll('.btn-filter').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  if(kerawananLayer)kerawananLayer.setStyle(styleKer);
+}
+
+function onKecClick(kecName, doFit=true){
+  const d=KEC_DATA[kecName];if(!d)return;
+  document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
+  document.querySelectorAll('.tab-panel').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('.tab-btn')[2].classList.add('active');
+  document.getElementById('tab-info').classList.add('active');
+  document.getElementById('kec-info-name').innerHTML=`<i class="fas fa-map-marker-alt" style="margin-right:6px;color:#D32F2F"></i>${kecName}`;
+  document.getElementById('kec-info-empty').style.display='none';
+  document.getElementById('kec-info-detail').style.display='block';
+  document.getElementById('ki-nama').textContent=kecName;
+  document.getElementById('ki-luas').textContent=d.luas_ha.toLocaleString('id')+' ha';
+  document.getElementById('ki-luas-rawan').textContent=d.total_tergenang.toLocaleString('id')+' ha';
+  document.getElementById('ki-pct').textContent=d.pct_tergenang.toFixed(2)+'%';
+  document.getElementById('ki-rendah').textContent=d.rawan_rendah.toFixed(2)+' ha';
+  document.getElementById('ki-sedang').textContent=d.rawan_sedang.toFixed(2)+' ha';
+  document.getElementById('ki-tinggi').textContent=d.rawan_tinggi.toFixed(2)+' ha';
+  document.getElementById('ki-pct-tinggi').textContent=d.pct_rawan_tinggi.toFixed(2)+'%';
+  buildMiniChart(kecName);
+  // Scroll sidebar agar mini chart terlihat
+  setTimeout(()=>{
+    const mc=document.getElementById('mini-chart');
+    if(mc&&mc.parentElement)mc.parentElement.scrollIntoView({behavior:'smooth',block:'nearest'});
+  },150);
+  if(doFit && kecLayers[kecName]){
+    try{ map.fitBounds(kecLayers[kecName].getBounds(),{padding:[40,40]}); }catch(e){}
+  }
+}
+
+// CHARTS
+let mainChart=null,miniChart=null;
+
+function buildMainChart(){
+  const ctx=document.getElementById('ndwi-chart').getContext('2d');
+  const kecs=Object.keys(KEC_DATA);
+  const shortNames=kecs.map(k=>k.replace('Pontianak ','Ptk. '));
+  const dataRendah=kecs.map(k=>KEC_DATA[k].rawan_rendah);
+  const dataSedang=kecs.map(k=>KEC_DATA[k].rawan_sedang);
+  const dataTinggi=kecs.map(k=>KEC_DATA[k].rawan_tinggi);
+  mainChart=new Chart(ctx,{
+    type:'bar',
+    data:{labels:shortNames,datasets:[
+      {label:'Rawan Rendah (ha)',data:dataRendah,backgroundColor:'rgba(253,216,53,0.85)',borderColor:'#FDD835',borderWidth:1},
+      {label:'Rawan Sedang (ha)',data:dataSedang,backgroundColor:'rgba(255,143,0,0.85)',borderColor:'#FF8F00',borderWidth:1},
+      {label:'Rawan Tinggi (ha)',data:dataTinggi,backgroundColor:'rgba(211,47,47,0.85)',borderColor:'#D32F2F',borderWidth:1}
+    ]},
+    options:{
+      responsive:true,maintainAspectRatio:false,
+      plugins:{
+        legend:{display:true,position:'bottom',labels:{font:{size:10,family:'Inter'},boxWidth:12,padding:8}},
+        tooltip:{backgroundColor:'rgba(255,255,255,0.97)',titleColor:'#1A2332',bodyColor:'#4A5568',borderColor:'#D1DCE8',borderWidth:1,padding:10,cornerRadius:8,
+          callbacks:{label:item=>`${item.dataset.label}: ${item.raw.toFixed(2)} ha`}},
+        title:{display:true,text:'Distribusi Luas Kerawanan Banjir per Kecamatan (ha)',font:{size:11,family:'Inter',weight:'600'},color:'#4A5568',padding:{bottom:6}}
+      },
+      scales:{
+        x:{ticks:{font:{size:9,family:'Inter'},color:'#718096'},grid:{display:false}},
+        y:{ticks:{font:{size:9,family:'Inter'},color:'#718096'},grid:{color:'rgba(0,0,0,0.06)'},title:{display:true,text:'Luas (ha)',font:{size:9},color:'#718096'}}
+      }
+    }
+  });
+}
+
+function updateMainChart(){/* chart statis – tidak perlu update */}
+
+function buildMiniChart(kecName){
+  document.getElementById('mini-chart-empty').style.display='none';
+  document.getElementById('mini-chart').style.display='block';
+  const ctx=document.getElementById('mini-chart').getContext('2d');
+  if(miniChart)miniChart.destroy();
+  const d=KEC_DATA[kecName];
+  miniChart=new Chart(ctx,{
+    type:'bar',
+    data:{labels:['Rawan Rendah','Rawan Sedang','Rawan Tinggi'],
+      datasets:[{data:[d.rawan_rendah,d.rawan_sedang,d.rawan_tinggi],
+        backgroundColor:['rgba(253,216,53,0.85)','rgba(255,143,0,0.85)','rgba(211,47,47,0.85)'],
+        borderColor:['#FDD835','#FF8F00','#D32F2F'],borderWidth:1}]},
+    options:{responsive:true,maintainAspectRatio:false,indexAxis:'y',
+      plugins:{legend:{display:false},
+        tooltip:{backgroundColor:'rgba(255,255,255,0.95)',bodyColor:'#4A5568',borderColor:'#D1DCE8',borderWidth:1,callbacks:{label:i=>`${i.raw.toFixed(2)} ha`}}},
+      scales:{x:{ticks:{font:{size:8},color:'#718096'},grid:{color:'rgba(0,0,0,0.05)'}},
+        y:{ticks:{font:{size:9,family:'Inter'},color:'#4A5568'},grid:{display:false}}}
+    }
+  });
+}
+
+// UI
+let sidebarOpen=true;
+function toggleSidebar(){
+  sidebarOpen=!sidebarOpen;
+  document.getElementById('sidebar').classList.toggle('collapsed',!sidebarOpen);
+  document.getElementById('sidebar-toggle-icon').className=sidebarOpen?'fas fa-chevron-left':'fas fa-chevron-right';
+  document.getElementById('sidebar-toggle').style.left=sidebarOpen?'calc(var(--sidebar-w) + 8px)':'8px';
+  setTimeout(()=>map.invalidateSize(),300);
+}
+
+let chartOpen=false;
+function toggleChart(){
+  chartOpen=!chartOpen;
+  document.getElementById('chart-panel').classList.toggle('collapsed',!chartOpen);
+  const btn=document.getElementById('chart-toggle-btn');
+  const lbl=document.getElementById('chart-toggle-label');
+  if(chartOpen){
+    lbl.textContent='Sembunyikan Grafik';
+    btn.classList.add('active');
+    // Pindah ke tab info agar konteks jelas
+    document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
+    document.querySelectorAll('.tab-panel').forEach(p=>p.classList.remove('active'));
+    document.querySelectorAll('.tab-btn')[2].classList.add('active');
+    document.getElementById('tab-info').classList.add('active');
+  } else {
+    lbl.textContent='Tampilkan Grafik Kerawanan';
+    btn.classList.remove('active');
+  }
+  setTimeout(()=>map.invalidateSize(),300);
+}
+
+function switchTab(n,btn){
+  document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
+  document.querySelectorAll('.tab-panel').forEach(p=>p.classList.remove('active'));
+  btn.classList.add('active');
+  document.getElementById('tab-'+n).classList.add('active');
+}
+
+function resetView(){map.setView(PONTIANAK_CENTER,DEFAULT_ZOOM);}
+function locateUser(){map.locate({setView:true,maxZoom:14});}
+function showAbout(){
+  alert('WebGIS Sebaran Genangan & Daerah Rawan Banjir Kota Pontianak\n\n' +
+        'Judul Skripsi:\nAnalisis Time-Series Normalized Difference Water Index (NDWI) untuk Identifikasi Daerah Rawan Banjir di Kota Pontianak\n\n' +
+        'Peneliti: Gemilang Imanuel Perdana\nNIM: D1041221024\n' +
+        'Program Studi: Sarjana Informatika, Jurusan Informatika\n' +
+        'Fakultas: Fakultas Teknik, Universitas Tanjungpura\n\n' +
+        'Periode Data: 2020–2024\n' +
+        'Sumber Data:\n' +
+        '• Citra Satelit Sentinel-2 Level-2A (Copernicus ESA)\n' +
+        '• Batas Administrasi & Jaringan Sungai Kota Pontianak\n\n' +
+        'Metodologi:\n' +
+        '• Ekstraksi NDWI = (Green – NIR) / (Green + NIR)\n' +
+        '• Time-Series bulanan & Klasifikasi Frekuensi Genangan (Kelas 0–3)\n' +
+        '• Pengolahan berbasis Google Earth Engine (GEE) dan QGIS');
+}
+
+// FUNGSI MODAL & CETAK LAYOUT PETA RESMI
+function openLayoutModal(){
+  const m = document.getElementById('layout-modal');
+  if(m) m.classList.add('show');
+}
+function closeLayoutModal(){
+  const m = document.getElementById('layout-modal');
+  if(m) m.classList.remove('show');
+}
+function printLayoutMap(){
+  window.print();
+}
+
+map.on('mousemove',e=>{
+  document.getElementById('coords-display').innerHTML=`Lat: ${e.latlng.lat.toFixed(4)} &nbsp;|&nbsp; Lng: ${e.latlng.lng.toFixed(4)}`;
+});
+
+function buildKecTable(){
+  const tbody=document.getElementById('kec-tbody');
+  tbody.innerHTML='';
+  // Urutkan berdasarkan % wilayah tergenang (tertinggi ke terendah)
+  const sorted=Object.entries(KEC_DATA).sort((a,b)=>b[1].pct_tergenang-a[1].pct_tergenang);
+  sorted.forEach(([name,d])=>{
+    const shortName=name.replace('Pontianak ','Ptk. ');
+    const pctColor=d.pct_tergenang>10?'#D32F2F':d.pct_tergenang>7?'#FF8F00':'#2E7D32';
+    const tr=document.createElement('tr');
+    tr.style.cursor='pointer';tr.style.transition='background 0.2s';
+    tr.innerHTML=`<td style="padding:6px 8px;border-bottom:1px solid #EDF2F7;font-weight:500;font-size:11px;">${shortName}</td><td style="padding:6px 4px;border-bottom:1px solid #EDF2F7;text-align:center;font-size:11px;font-weight:600;">${d.total_tergenang.toFixed(1)}</td><td style="padding:6px 4px;border-bottom:1px solid #EDF2F7;text-align:center;font-weight:700;font-size:11px;color:${pctColor}">${d.pct_tergenang.toFixed(2)}%</td>`;
+    tr.onmouseenter=()=>{tr.style.background='#EBF5FB';};
+    tr.onmouseleave=()=>{tr.style.background='';};
+    tr.onclick=()=>onKecClick(name);
+    tbody.appendChild(tr);
+  });
+}
+
+async function init(){
+  await loadLayers();
+  L.control.scale({imperial:false,metric:true,position:'bottomleft'}).addTo(map);
+  buildMainChart();
+  buildKecTable();
+
+  // Event listener klik di luar dialog modal untuk menutup
+  const modal = document.getElementById('layout-modal');
+  if(modal){
+    modal.addEventListener('click', function(e){
+      if(e.target === this) closeLayoutModal();
+    });
+  }
+  // Event listener tombol Escape
+  document.addEventListener('keydown', function(e){
+    if(e.key === 'Escape') closeLayoutModal();
+  });
+
+  setTimeout(()=>{
+    const o=document.getElementById('loading-overlay');
+    o.classList.add('fade-out');
+    setTimeout(()=>o.remove(),600);
+  },1800);
+}
+
+document.addEventListener('DOMContentLoaded',init);
+</script>
+</body>
+</html>
