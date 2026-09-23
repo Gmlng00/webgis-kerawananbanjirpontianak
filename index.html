@@ -53,8 +53,7 @@
       --radius-lg: 16px;
       --radius-xl: 20px;
       --radius-pill: 9999px;
-
-      --header-h: 60px;
+      --header-h: 70px;
       --sidebar-w: 340px;
       --panel-h: 280px;
       --transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
@@ -70,7 +69,7 @@
       -webkit-font-smoothing: antialiased;
     }
 
-    /* HEADER — Vibrant striking gradient (eye-catching vs clean white sidebar) */
+    /* HEADER — Soft sophisticated slate-navy gradient with thicker profile & prominent title */
     #header {
       position: fixed;
       top: 0;
@@ -78,39 +77,39 @@
       right: 0;
       z-index: 1000;
       height: var(--header-h);
-      background: linear-gradient(135deg, #0A1128 0%, #1E1B4B 28%, #1D4ED8 72%, #0284C7 100%);
-      border-bottom: 1px solid rgba(255, 255, 255, 0.16);
-      box-shadow: 0 4px 24px -2px rgba(10, 17, 40, 0.4), 0 2px 8px rgba(2, 132, 199, 0.25);
+      background: linear-gradient(120deg, #1E293B 0%, #243B6B 35%, #2554A5 70%, #2563EB 100%);
+      border-bottom: 1px solid rgba(255, 255, 255, 0.14);
+      box-shadow: 0 4px 20px -3px rgba(15, 23, 42, 0.28), 0 2px 6px rgba(37, 99, 235, 0.15);
       display: flex;
       align-items: center;
       justify-content: space-between;
-      padding: 0 20px 0 16px;
+      padding: 0 24px 0 20px;
     }
-    .header-left { display: flex; align-items: center; gap: 14px; min-width: 0; }
+    .header-left { display: flex; align-items: center; gap: 16px; min-width: 0; }
     .logo-box {
-      width: 40px;
-      height: 40px;
-      border-radius: var(--radius-md);
-      background: rgba(255, 255, 255, 0.15);
-      backdrop-filter: blur(8px);
-      -webkit-backdrop-filter: blur(8px);
-      border: 1px solid rgba(255, 255, 255, 0.28);
+      width: 46px;
+      height: 46px;
+      border-radius: var(--radius-lg);
+      background: rgba(255, 255, 255, 0.14);
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+      border: 1px solid rgba(255, 255, 255, 0.25);
       display: flex;
       align-items: center;
       justify-content: center;
-      font-size: 18px;
-      color: #38BDF8;
+      font-size: 20px;
+      color: #7DD3FC;
       flex-shrink: 0;
-      box-shadow: 0 0 16px rgba(56, 189, 248, 0.4);
+      box-shadow: 0 0 16px rgba(125, 211, 252, 0.3);
     }
-    .title-box { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+    .title-box { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
     .title-box h1 {
-      font-size: 14px;
+      font-size: 16.5px;
       font-weight: 800;
       color: #FFFFFF;
-      line-height: 1.2;
-      letter-spacing: -0.01em;
-      text-shadow: 0 1px 3px rgba(0, 0, 0, 0.35);
+      line-height: 1.25;
+      letter-spacing: -0.015em;
+      text-shadow: 0 2px 4px rgba(0, 0, 0, 0.35);
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
@@ -118,21 +117,21 @@
     .header-meta-row {
       display: flex;
       align-items: center;
-      gap: 6px;
+      gap: 8px;
       flex-wrap: wrap;
     }
     .header-author-chip {
       font-size: 11.5px;
       font-weight: 500;
-      color: #E0E7FF;
+      color: #E2E8F0;
       display: inline-flex;
       align-items: center;
       gap: 6px;
-      background: rgba(255, 255, 255, 0.12);
-      padding: 2px 10px;
+      background: rgba(255, 255, 255, 0.14);
+      padding: 3px 12px;
       border-radius: var(--radius-pill);
       border: 1px solid rgba(255, 255, 255, 0.22);
-      backdrop-filter: blur(4px);
+      backdrop-filter: blur(6px);
     }
     .header-author-chip strong {
       color: #FFFFFF;
@@ -142,53 +141,53 @@
       opacity: 0.55;
       font-size: 9px;
     }
-    .header-right { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
+    .header-right { display: flex; align-items: center; gap: 12px; flex-shrink: 0; }
     .btn-header-about {
-      height: 35px;
-      padding: 0 14px;
+      height: 38px;
+      padding: 0 16px;
       border-radius: var(--radius-pill);
       background: rgba(255, 255, 255, 0.14);
-      border: 1px solid rgba(255, 255, 255, 0.28);
-      backdrop-filter: blur(6px);
+      border: 1px solid rgba(255, 255, 255, 0.26);
+      backdrop-filter: blur(8px);
       color: #FFFFFF;
       cursor: pointer;
-      font-size: 11.5px;
+      font-size: 12px;
       font-weight: 600;
       font-family: inherit;
       display: inline-flex;
       align-items: center;
-      gap: 7px;
+      gap: 8px;
       transition: var(--transition);
-      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
     }
     .btn-header-about:hover {
-      background: rgba(255, 255, 255, 0.25);
-      border-color: rgba(255, 255, 255, 0.5);
+      background: rgba(255, 255, 255, 0.24);
+      border-color: rgba(255, 255, 255, 0.45);
       transform: translateY(-1px);
-      box-shadow: 0 4px 14px rgba(0, 0, 0, 0.25);
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
     }
     .btn-header-print {
-      height: 35px;
-      padding: 0 15px;
+      height: 38px;
+      padding: 0 18px;
       border-radius: var(--radius-pill);
       background: #FFFFFF;
       border: none;
-      color: #1D4ED8;
+      color: #1E3A8A;
       cursor: pointer;
-      font-size: 11.5px;
+      font-size: 12px;
       font-weight: 700;
       font-family: inherit;
       display: inline-flex;
       align-items: center;
-      gap: 7px;
+      gap: 8px;
       transition: var(--transition);
-      box-shadow: 0 4px 14px rgba(0, 0, 0, 0.22);
+      box-shadow: 0 4px 14px rgba(15, 23, 42, 0.18);
     }
     .btn-header-print:hover {
       background: #F8FAFC;
-      color: #0284C7;
+      color: #2563EB;
       transform: translateY(-1px);
-      box-shadow: 0 6px 18px rgba(0, 0, 0, 0.3);
+      box-shadow: 0 6px 18px rgba(15, 23, 42, 0.25);
     }
 
     /* APP CONTAINER */
@@ -995,7 +994,7 @@
       animation: modalZoomIn 0.25s cubic-bezier(0.16, 1, 0.3, 1);
     }
     .about-modal-header {
-      background: linear-gradient(135deg, #0A1128 0%, #1E1B4B 35%, #1D4ED8 100%);
+      background: linear-gradient(120deg, #1E293B 0%, #243B6B 35%, #2554A5 70%, #2563EB 100%);
       color: #FFFFFF;
       padding: 16px 22px;
       display: flex;
