@@ -3,370 +3,815 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+  <meta http-equiv="Pragma" content="no-cache" />
+  <meta http-equiv="Expires" content="0" />
   <title>WebGIS Sebaran Genangan Banjir – Kota Pontianak</title>
   <meta name="description" content="Dashboard WebGIS Sebaran Genangan dan Daerah Rawan Banjir Kota Pontianak berdasarkan Analisis Time-Series NDWI menggunakan Google Earth Engine." />
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" />
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
   <style>
     :root {
-      /* Brand */
-      --primary:#2563EB;--primary-light:#3B82F6;--primary-dark:#1D4ED8;
-      --primary-subtle:#EFF6FF;--primary-muted:#BFDBFE;
-      --accent:#0EA5E9;
-      --success:#16A34A;--warning:#D97706;--danger:#DC2626;
+      /* Brand & Accents */
+      --primary: #2563EB;
+      --primary-hover: #1D4ED8;
+      --primary-subtle: #EFF6FF;
+      --primary-border: #DBEAFE;
+      --accent: #0284C7;
 
-      /* Hazard (cartographic — do not change) */
-      --rawan-tinggi:#DC2626;--rawan-sedang:#EA7500;--rawan-rendah:#EAB308;--rawan-tidak:#E5E7EB;
+      /* Hazard Colors (Cartographic standard) */
+      --rawan-tinggi: #DC2626;
+      --rawan-sedang: #EA580C;
+      --rawan-rendah: #EAB308;
+      --rawan-tidak: #E2E8F0;
 
-      /* Neutrals */
-      --bg-page:#F7F8FA;--bg-surface:#FFFFFF;--bg-subtle:#F4F5F7;--bg-hover:#EEF0F3;
-      --text-primary:#18191B;--text-secondary:#52555F;--text-light:#8B8FA6;--text-white:#FFFFFF;
-      --border:#E4E6EA;--border-strong:#C8CDD6;
+      /* Surfaces & Cards */
+      --bg-canvas: #F8FAFC;
+      --surface-floating: rgba(255, 255, 255, 0.94);
+      --surface-solid: #FFFFFF;
+      --surface-subtle: #F8FAFC;
+      --surface-hover: #F1F5F9;
 
-      /* Shadows — layered, ambient */
-      --shadow-sm:0 1px 2px rgba(0,0,0,0.05),0 1px 3px rgba(0,0,0,0.04);
-      --shadow-md:0 2px 6px rgba(0,0,0,0.06),0 4px 12px rgba(0,0,0,0.06);
-      --shadow-lg:0 4px 16px rgba(0,0,0,0.08),0 8px 32px rgba(0,0,0,0.06);
-      --shadow-floating:0 8px 24px rgba(0,0,0,0.10),0 2px 6px rgba(0,0,0,0.06);
+      /* Typography Colors */
+      --text-main: #0F172A;
+      --text-muted: #475569;
+      --text-tertiary: #94A3B8;
 
-      --radius-xs:4px;--radius-sm:6px;--radius-md:8px;--radius-lg:12px;--radius-xl:16px;
-      --header-h:58px;--sidebar-w:300px;--panel-h:280px;
-      --transition:all 0.15s cubic-bezier(0.4,0,0.2,1);
+      /* Borders */
+      --border-subtle: rgba(226, 232, 240, 0.85);
+      --border-strong: #CBD5E1;
+
+      /* Shadows (Layered Ambient) */
+      --shadow-sm: 0 1px 2px 0 rgba(15, 23, 42, 0.05);
+      --shadow-md: 0 4px 14px -2px rgba(15, 23, 42, 0.08), 0 2px 6px -2px rgba(15, 23, 42, 0.04);
+      --shadow-floating: 0 20px 40px -15px rgba(15, 23, 42, 0.12), 0 0 0 1px rgba(15, 23, 42, 0.05);
+      --shadow-popup: 0 16px 32px -8px rgba(15, 23, 42, 0.16);
+
+      --radius-sm: 8px;
+      --radius-md: 12px;
+      --radius-lg: 16px;
+      --radius-xl: 20px;
+      --radius-pill: 9999px;
+
+      --header-h: 56px;
+      --sidebar-w: 320px;
+      --panel-h: 280px;
+      --transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
     }
-    *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
-    html,body{height:100%;font-family:'Inter',sans-serif;background:var(--bg-page);color:var(--text-primary);overflow:hidden;}
 
-    /* HEADER — white, clean, no gradient */
-    #header{
-      position:fixed;top:0;left:0;right:0;z-index:1100;height:var(--header-h);
-      background:var(--bg-surface);
-      border-bottom:1px solid var(--border);
-      display:flex;align-items:center;justify-content:space-between;
-      padding:0 18px 0 14px;
-      box-shadow:var(--shadow-sm);
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body {
+      height: 100%;
+      font-family: 'Plus Jakarta Sans', 'Inter', -apple-system, sans-serif;
+      background: var(--bg-canvas);
+      color: var(--text-main);
+      overflow: hidden;
+      -webkit-font-smoothing: antialiased;
     }
-    .header-left{display:flex;align-items:center;gap:10px;}
-    .logo-box{
-      width:34px;height:34px;border-radius:var(--radius-sm);
-      background:var(--primary-subtle);border:1px solid var(--primary-muted);
-      display:flex;align-items:center;justify-content:center;font-size:15px;color:var(--primary);
-      flex-shrink:0;
-    }
-    .title-box h1{font-size:13px;font-weight:600;color:var(--text-primary);line-height:1.3;letter-spacing:-0.01em;}
-    .title-box p{font-size:11px;font-weight:400;color:var(--text-light);margin-top:1px;}
-    .header-right{display:flex;align-items:center;gap:6px;}
-    .header-badge{
-      background:var(--bg-subtle);border:1px solid var(--border);
-      border-radius:var(--radius-xs);padding:3px 10px;font-size:11px;font-weight:500;color:var(--text-secondary);
-      white-space:nowrap;letter-spacing:0.01em;
-    }
-    .btn-icon{
-      width:32px;height:32px;border-radius:var(--radius-sm);background:transparent;
-      border:1px solid var(--border);color:var(--text-light);cursor:pointer;font-size:13px;
-      display:flex;align-items:center;justify-content:center;transition:var(--transition);
-    }
-    .btn-icon:hover{background:var(--primary-subtle);border-color:var(--primary-muted);color:var(--primary);}
 
-    /* APP LAYOUT */
-    #app{position:fixed;top:var(--header-h);left:0;right:0;bottom:0;display:flex;flex-direction:row;}
-
-    /* SIDEBAR */
-    #sidebar{
-      width:var(--sidebar-w);height:100%;background:var(--bg-surface);
-      border-right:1px solid var(--border);display:flex;flex-direction:column;
-      overflow:hidden;z-index:100;flex-shrink:0;
-      transition:width 0.3s cubic-bezier(0.4,0,0.2,1);
+    /* HEADER — Floating glass navbar with subtle blur */
+    #header {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      z-index: 1000;
+      height: var(--header-h);
+      background: rgba(255, 255, 255, 0.90);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border-bottom: 1px solid var(--border-subtle);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 18px 0 16px;
     }
-    #sidebar.collapsed{width:0;}
-    .sidebar-tabs{display:flex;background:var(--bg-subtle);border-bottom:1px solid var(--border);flex-shrink:0;}
-    .tab-btn{
-      flex:1;padding:10px 6px 9px;background:none;border:none;cursor:pointer;
-      font-family:'Inter',sans-serif;font-size:10px;font-weight:600;color:var(--text-light);
-      display:flex;flex-direction:column;align-items:center;gap:3px;letter-spacing:0.04em;
-      text-transform:uppercase;transition:var(--transition);border-bottom:2px solid transparent;
+    .header-left { display: flex; align-items: center; gap: 12px; }
+    .logo-box {
+      width: 36px;
+      height: 36px;
+      border-radius: var(--radius-md);
+      background: linear-gradient(135deg, #EFF6FF 0%, #DBEAFE 100%);
+      border: 1px solid var(--primary-border);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 15px;
+      color: var(--primary);
+      flex-shrink: 0;
+      box-shadow: var(--shadow-sm);
     }
-    .tab-btn i{font-size:13px;}
-    .tab-btn.active{color:var(--primary);border-bottom-color:var(--primary);background:var(--bg-surface);}
-    .tab-btn:hover:not(.active){color:var(--text-secondary);background:var(--bg-hover);}
-    .tab-panel{display:none;flex:1;overflow-y:auto;padding:12px;flex-direction:column;gap:10px;}
-    .tab-panel.active{display:flex;}
-    .tab-panel::-webkit-scrollbar{width:4px;}
-    .tab-panel::-webkit-scrollbar-thumb{background:var(--border-strong);border-radius:4px;}
-
-    /* SIDEBAR COMPONENTS */
-    .section-title{
-      font-size:10px;font-weight:600;letter-spacing:0.07em;color:var(--text-light);
-      text-transform:uppercase;padding-bottom:7px;border-bottom:1px solid var(--border);margin-bottom:2px;
+    .title-box h1 {
+      font-size: 13.5px;
+      font-weight: 700;
+      color: var(--text-main);
+      line-height: 1.25;
+      letter-spacing: -0.01em;
     }
-    .stat-grid{display:grid;grid-template-columns:1fr 1fr;gap:6px;}
-    .stat-card{
-      background:var(--bg-subtle);border:1px solid var(--border);border-radius:var(--radius-md);
-      padding:11px 10px;transition:var(--transition);
+    .title-box p {
+      font-size: 11px;
+      font-weight: 400;
+      color: var(--text-tertiary);
+      margin-top: 2px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
     }
-    .stat-card:hover{box-shadow:var(--shadow-sm);transform:translateY(-1px);}
-    /* Removed colored icon boxes — use colored numeral only */
-    .stat-card .stat-value{font-size:19px;font-weight:800;line-height:1;}
-    .stat-card .stat-label{font-size:10px;color:var(--text-light);margin-top:4px;font-weight:500;line-height:1.4;}
-    .stat-card.blue .stat-value{color:#1D4ED8;}
-    .stat-card.red .stat-value{color:#DC2626;}
-    .stat-card.orange .stat-value{color:#B45309;}
-    .stat-card.green .stat-value{color:#15803D;}
-
-    .kerawanan-item{margin-bottom:10px;}
-    .kerawanan-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:5px;}
-    .kerawanan-label{display:flex;align-items:center;gap:7px;font-size:11.5px;font-weight:500;color:var(--text-secondary);}
-    .kerawanan-dot{width:9px;height:9px;border-radius:2px;flex-shrink:0;}
-    .kerawanan-pct{font-size:11.5px;font-weight:600;color:var(--text-secondary);}
-    .progress-bar{height:5px;background:var(--border);border-radius:3px;overflow:hidden;}
-    .progress-fill{height:100%;border-radius:3px;transition:width 0.8s cubic-bezier(0.4,0,0.2,1);}
-
-    /* Layer items — simple divider rows, no card borders */
-    .layer-item{
-      display:flex;align-items:center;justify-content:space-between;
-      padding:9px 0;border-bottom:1px solid var(--border);transition:var(--transition);cursor:pointer;
+    .header-right { display: flex; align-items: center; gap: 8px; }
+    .header-badge {
+      background: var(--surface-subtle);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-pill);
+      padding: 4px 12px;
+      font-size: 11px;
+      font-weight: 500;
+      color: var(--text-muted);
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      white-space: nowrap;
     }
-    .layer-item:last-child{border-bottom:none;}
-    .layer-item:hover .layer-name{color:var(--primary);}
-    .layer-item-left{display:flex;align-items:center;gap:9px;}
-    .layer-color-box{width:13px;height:13px;border-radius:var(--radius-xs);border:1px solid rgba(0,0,0,0.12);flex-shrink:0;}
-    .layer-name{font-size:12px;font-weight:500;color:var(--text-primary);transition:var(--transition);}
-    .layer-desc{font-size:10px;color:var(--text-light);margin-top:1px;}
-    .toggle{position:relative;width:32px;height:18px;flex-shrink:0;}
-    .toggle input{opacity:0;width:0;height:0;}
-    .toggle-slider{position:absolute;inset:0;background:var(--border-strong);border-radius:9px;cursor:pointer;transition:0.2s;}
-    .toggle-slider::before{content:'';position:absolute;width:12px;height:12px;background:#fff;border-radius:50%;left:3px;top:3px;transition:0.2s;box-shadow:var(--shadow-sm);}
-    .toggle input:checked+.toggle-slider{background:var(--primary);}
-    .toggle input:checked+.toggle-slider::before{transform:translateX(14px);}
-
-    .opacity-control{padding:4px 0;}
-    .opacity-label{display:flex;justify-content:space-between;font-size:11px;color:var(--text-light);margin-bottom:6px;}
-    input[type=range]{width:100%;height:4px;border-radius:2px;appearance:none;outline:none;cursor:pointer;background:linear-gradient(to right,var(--primary) 0%,var(--primary) 70%,var(--border) 70%);}
-    input[type=range]::-webkit-slider-thumb{appearance:none;width:14px;height:14px;border-radius:50%;background:#fff;border:2px solid var(--primary);box-shadow:var(--shadow-sm);}
-
-    .basemap-grid{display:grid;grid-template-columns:1fr 1fr;gap:6px;}
-    .basemap-btn{
-      border:1px solid var(--border);border-radius:var(--radius-sm);padding:9px 6px;
-      text-align:center;cursor:pointer;background:var(--bg-subtle);transition:var(--transition);
-      font-size:11px;font-weight:500;color:var(--text-secondary);
+    .header-badge .live-dot {
+      width: 7px;
+      height: 7px;
+      border-radius: var(--radius-pill);
+      background: #10B981;
+      box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.2);
     }
-    .basemap-btn i{display:block;font-size:16px;margin-bottom:4px;color:var(--text-light);}
-    .basemap-btn.active{border-color:var(--primary-muted);color:var(--primary);background:var(--primary-subtle);}
-    .basemap-btn.active i{color:var(--primary);}
-    .basemap-btn:hover:not(.active){border-color:var(--border-strong);color:var(--text-primary);background:var(--bg-hover);}
-
-    /* Info panel — flat surface with left accent border */
-    #kec-info-panel{background:var(--bg-subtle);border:1px solid var(--border);border-left:3px solid var(--primary);border-radius:var(--radius-md);padding:12px;}
-    #kec-info-panel h3{font-size:12.5px;font-weight:600;color:var(--text-primary);margin-bottom:8px;}
-    .kec-stat-row{display:flex;justify-content:space-between;font-size:11.5px;padding:5px 0;border-bottom:1px solid var(--border);}
-    .kec-stat-row:last-child{border-bottom:none;}
-    .kec-stat-row .kec-key{color:var(--text-secondary);font-weight:400;}
-    .kec-stat-row .kec-val{font-weight:600;color:var(--text-primary);}
-    .badge-rawan{display:inline-block;padding:2px 8px;border-radius:var(--radius-xs);font-size:10.5px;font-weight:600;letter-spacing:0.02em;}
-    .badge-rawan.tinggi{background:#FEE2E2;color:#991B1B;}
-    .badge-rawan.sedang{background:#FEF3C7;color:#92400E;}
-    .badge-rawan.rendah{background:#D1FAE5;color:#065F46;}
-
-    /* MAIN */
-    #main{flex:1;display:flex;flex-direction:column;overflow:hidden;position:relative;}
-    #map{flex:1;width:100%;z-index:1;}
-
-    /* Leaflet overrides */
-    .leaflet-popup-content-wrapper{border-radius:var(--radius-md) !important;box-shadow:var(--shadow-floating) !important;font-family:'Inter',sans-serif !important;border:1px solid var(--border) !important;}
-    .leaflet-popup-content{font-size:12px !important;margin:10px 14px !important;}
-    .popup-title{font-weight:600;font-size:13.5px;color:var(--text-primary);margin-bottom:8px;border-bottom:2px solid var(--primary);padding-bottom:6px;}
-    .popup-row{display:flex;justify-content:space-between;padding:4px 0;font-size:11.5px;border-bottom:1px solid var(--border);}
-    .popup-row:last-child{border-bottom:none;}
-    .popup-key{color:var(--text-secondary);}
-    .popup-val{font-weight:600;color:var(--text-primary);}
-
-    /* CHART PANEL */
-    #chart-panel{
-      height:var(--panel-h);background:var(--bg-surface);
-      border-top:1px solid var(--border);display:flex;flex-direction:column;
-      box-shadow:0 -4px 16px rgba(0,0,0,0.08);overflow:hidden;flex-shrink:0;
-      transition:height 0.3s ease;
+    .btn-header {
+      height: 34px;
+      padding: 0 12px;
+      border-radius: var(--radius-pill);
+      background: var(--surface-solid);
+      border: 1px solid var(--border-subtle);
+      color: var(--text-muted);
+      cursor: pointer;
+      font-size: 11.5px;
+      font-weight: 500;
+      font-family: inherit;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      transition: var(--transition);
+      box-shadow: var(--shadow-sm);
     }
-    #chart-panel.collapsed{height:0;}
-    .chart-panel-header{display:flex;align-items:center;justify-content:space-between;padding:10px 16px 0;flex-shrink:0;}
-    .chart-panel-title{display:flex;align-items:center;gap:8px;}
-    .chart-panel-title h2{font-size:13px;font-weight:700;color:var(--text-primary);}
-    .chart-panel-title span{font-size:11px;color:var(--text-light);font-weight:400;}
-    .chart-controls{display:flex;align-items:center;gap:8px;}
-    .chart-select{border:1px solid var(--border);border-radius:var(--radius-sm);padding:4px 10px;font-size:11.5px;font-family:'Inter',sans-serif;color:var(--text-primary);background:#F7FAFC;outline:none;cursor:pointer;}
-    .chart-select:focus{border-color:var(--primary);}
-    .chart-body{flex:1;display:grid;grid-template-columns:1fr 220px;gap:0;overflow:hidden;padding:8px 12px 12px;}
-    #ndwi-chart{width:100%;}
-    .chart-legend-panel{padding-left:12px;border-left:1px solid var(--border);display:flex;flex-direction:column;gap:10px;overflow-y:auto;}
-    .chart-legend-panel h4{font-size:10px;font-weight:700;color:var(--text-light);text-transform:uppercase;letter-spacing:0.06em;}
-    .legend-row{display:flex;align-items:center;gap:8px;font-size:11px;}
-    .legend-line{width:20px;height:3px;border-radius:2px;flex-shrink:0;}
-    .ndwi-stat-box{background:#F7FAFC;border:1px solid var(--border);border-radius:var(--radius-sm);padding:10px;}
-    .ndwi-stat-box .nsb-title{font-size:10px;font-weight:700;color:var(--text-light);text-transform:uppercase;margin-bottom:7px;}
-    .ndwi-row{display:flex;justify-content:space-between;font-size:11.5px;padding:2px 0;}
-    .ndwi-row .nk{color:var(--text-secondary);}
-    .ndwi-row .nv{font-weight:700;color:var(--text-primary);}
+    .btn-header:hover {
+      background: var(--primary-subtle);
+      border-color: var(--primary-border);
+      color: var(--primary);
+      transform: translateY(-1px);
+    }
 
-    /* MAP OVERLAYS */
-    #map-legend{
-      position:absolute;bottom:30px;left:16px;z-index:500;
-      background:rgba(255,255,255,0.98);border:1px solid var(--border);
-      border-radius:var(--radius-md);padding:10px 12px;box-shadow:var(--shadow-floating);
-      min-width:150px;
+    /* APP CONTAINER */
+    #app {
+      position: fixed;
+      top: var(--header-h);
+      left: 0;
+      right: 0;
+      bottom: 0;
+      overflow: hidden;
     }
-    #map-legend h4{font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.07em;color:var(--text-light);margin-bottom:8px;}
-    .legend-item{display:flex;align-items:center;gap:7px;margin-bottom:6px;font-size:11px;font-weight:400;color:var(--text-secondary);}
-    .legend-swatch{width:14px;height:9px;border-radius:var(--radius-xs);flex-shrink:0;}
-    .legend-item:last-child{margin-bottom:0;}
-    .leaflet-bottom.leaflet-left{bottom:250px !important;left:16px !important;z-index:490 !important;}
-    .leaflet-control-scale-line{border:1.5px solid var(--text-secondary) !important;border-top:none !important;font-family:'Inter',sans-serif !important;font-size:10px !important;font-weight:500 !important;color:var(--text-secondary) !important;background:rgba(255,255,255,0.95) !important;padding:2px 6px !important;border-radius:0 0 3px 3px !important;box-shadow:var(--shadow-sm) !important;}
 
-    #map-fab{position:absolute;right:12px;top:12px;z-index:500;display:flex;flex-direction:column;gap:6px;}
-    .fab-btn{
-      width:36px;height:36px;border-radius:var(--radius-sm);background:rgba(255,255,255,0.98);
-      border:1px solid var(--border);display:flex;align-items:center;justify-content:center;
-      cursor:pointer;font-size:13px;color:var(--text-secondary);box-shadow:var(--shadow-floating);transition:var(--transition);
+    /* FULL-BLEED MAP */
+    #main {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
     }
-    .fab-btn:hover{background:var(--primary-subtle);color:var(--primary);border-color:var(--primary-muted);}
+    #map-wrap {
+      width: 100%;
+      height: 100%;
+      position: relative;
+    }
+    #map {
+      width: 100%;
+      height: 100%;
+      z-index: 1;
+    }
 
-    #coords-display{
-      position:absolute;bottom:8px;left:50%;transform:translateX(-50%);z-index:500;
-      background:rgba(20,20,30,0.72);color:#fff;font-size:10px;font-family:'Inter',monospace;
-      padding:4px 12px;border-radius:20px;pointer-events:none;letter-spacing:0.04em;
+    /* FLOATING ISLAND SIDEBAR */
+    #sidebar {
+      position: absolute;
+      top: 14px;
+      left: 14px;
+      bottom: 14px;
+      width: var(--sidebar-w);
+      background: var(--surface-floating);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-lg);
+      box-shadow: var(--shadow-floating);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      z-index: 500;
+      transition: transform 0.35s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.25s ease;
     }
-    #chart-toggle-btn{
-      display:flex;align-items:center;justify-content:center;gap:7px;
-      width:100%;padding:8px 14px;margin:6px 0 2px;
-      background:var(--primary);color:#fff;
-      border:none;border-radius:var(--radius-sm);font-size:11.5px;font-weight:600;
-      cursor:pointer;transition:var(--transition);font-family:'Inter',sans-serif;
+    #sidebar.collapsed {
+      transform: translateX(calc(-100% - 20px));
+      opacity: 0;
+      pointer-events: none;
     }
-    #chart-toggle-btn:hover{background:var(--primary-dark);transform:translateY(-1px);}
-    #chart-toggle-btn.active{background:var(--primary-dark);}
 
-    #sidebar-toggle{
-      position:absolute;left:calc(var(--sidebar-w) + 6px);top:50%;transform:translateY(-50%);z-index:200;
-      width:20px;height:44px;border-radius:0 5px 5px 0;background:var(--bg-surface);
-      border:1px solid var(--border);border-left:none;cursor:pointer;font-size:10px;
-      display:flex;align-items:center;justify-content:center;color:var(--text-light);
-      transition:var(--transition);box-shadow:2px 0 8px rgba(0,0,0,0.06);
+    /* SEGMENTED PILL TABS */
+    .sidebar-tabs {
+      display: flex;
+      gap: 4px;
+      padding: 4px;
+      margin: 12px 12px 6px;
+      background: #F1F5F9;
+      border-radius: var(--radius-md);
+      flex-shrink: 0;
     }
-    #sidebar-toggle:hover{color:var(--primary);background:var(--primary-subtle);}
+    .tab-btn {
+      flex: 1;
+      padding: 7px 10px;
+      background: transparent;
+      border: none;
+      border-radius: var(--radius-sm);
+      font-family: inherit;
+      font-size: 11.5px;
+      font-weight: 500;
+      color: var(--text-muted);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      transition: var(--transition);
+    }
+    .tab-btn i { font-size: 11.5px; }
+    .tab-btn.active {
+      background: #FFFFFF;
+      color: var(--text-main);
+      font-weight: 600;
+      box-shadow: 0 1px 3px rgba(15, 23, 42, 0.08), 0 1px 2px rgba(15, 23, 42, 0.04);
+    }
+    .tab-btn:hover:not(.active) {
+      color: var(--text-main);
+    }
 
-    /* LOADING */
-    #loading-overlay{
-      position:fixed;inset:0;z-index:9999;
-      background:linear-gradient(135deg,#0D47A1 0%,#1565C0 50%,#0288D1 100%);
-      display:flex;flex-direction:column;align-items:center;justify-content:center;gap:20px;
-      transition:opacity 0.5s;
+    .tab-panel {
+      display: none;
+      flex: 1;
+      overflow-y: auto;
+      padding: 10px 14px 14px;
+      flex-direction: column;
+      gap: 12px;
     }
-    #loading-overlay.fade-out{opacity:0;pointer-events:none;}
-    .loading-icon{font-size:48px;color:rgba(255,255,255,0.9);animation:pulse 1.2s ease-in-out infinite;}
-    .loading-title{font-size:20px;font-weight:700;color:#fff;text-align:center;}
-    .loading-sub{font-size:13px;color:rgba(255,255,255,0.7);text-align:center;}
-    .loading-bar-wrap{width:240px;height:4px;background:rgba(255,255,255,0.2);border-radius:2px;overflow:hidden;}
-    .loading-bar{height:100%;background:#fff;border-radius:2px;animation:loadbar 1.8s ease-in-out infinite;}
-    @keyframes loadbar{0%{width:0%}50%{width:70%}100%{width:100%}}
-    @keyframes pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:0.7;transform:scale(0.92)}}
+    .tab-panel.active { display: flex; }
+    .tab-panel::-webkit-scrollbar { width: 5px; }
+    .tab-panel::-webkit-scrollbar-thumb {
+      background: rgba(148, 163, 184, 0.4);
+      border-radius: var(--radius-pill);
+    }
 
-    .btn-filter{
-      flex:1;padding:5px 4px;border-radius:var(--radius-sm);border:1px solid var(--border);
-      background:var(--bg-subtle);font-size:10.5px;font-weight:500;cursor:pointer;
-      font-family:'Inter',sans-serif;color:var(--text-secondary);transition:var(--transition);
+    /* SECTION TITLES */
+    .section-title {
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: var(--text-tertiary);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      margin-top: 2px;
     }
-    .btn-filter:hover{background:var(--bg-hover);color:var(--text-primary);border-color:var(--border-strong);}
-    .btn-filter.active{background:var(--fc,var(--primary));border-color:var(--fc,var(--primary));color:#fff;font-weight:600;}
-    .btn-filter#f-all.active{background:var(--primary);border-color:var(--primary);color:#fff;}
+
+    /* STAT CARDS */
+    .stat-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+    }
+    .stat-card {
+      background: #FFFFFF;
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-md);
+      padding: 11px 12px 11px 14px;
+      position: relative;
+      overflow: hidden;
+      box-shadow: var(--shadow-sm);
+      transition: transform 0.15s ease, box-shadow 0.15s ease;
+    }
+    .stat-card:hover {
+      transform: translateY(-1px);
+      box-shadow: var(--shadow-md);
+    }
+    .stat-card::before {
+      content: '';
+      position: absolute;
+      left: 0;
+      top: 10px;
+      bottom: 10px;
+      width: 3.5px;
+      border-radius: 0 3px 3px 0;
+    }
+    .stat-card.blue::before { background: var(--primary); }
+    .stat-card.red::before { background: var(--rawan-tinggi); }
+    .stat-card.orange::before { background: var(--rawan-sedang); }
+    .stat-card.green::before { background: #10B981; }
+
+    .stat-card .stat-label {
+      font-size: 10px;
+      font-weight: 600;
+      color: var(--text-tertiary);
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+    .stat-card .stat-value {
+      font-size: 20px;
+      font-weight: 700;
+      color: var(--text-main);
+      margin-top: 3px;
+      line-height: 1;
+      letter-spacing: -0.02em;
+    }
+
+    /* DISTRIBUTION BARS */
+    .kerawanan-item { margin-bottom: 8px; }
+    .kerawanan-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 5px;
+      font-size: 11.5px;
+    }
+    .kerawanan-label {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      font-weight: 500;
+      color: var(--text-muted);
+    }
+    .kerawanan-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: var(--radius-pill);
+      flex-shrink: 0;
+    }
+    .kerawanan-pct {
+      font-weight: 600;
+      color: var(--text-main);
+    }
+    .progress-bar {
+      height: 6px;
+      background: #F1F5F9;
+      border-radius: var(--radius-pill);
+      overflow: hidden;
+    }
+    .progress-fill {
+      height: 100%;
+      border-radius: var(--radius-pill);
+      transition: width 0.8s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    /* TABLE CARD */
+    .kec-table-card {
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-md);
+      overflow: hidden;
+      background: #FFFFFF;
+      box-shadow: var(--shadow-sm);
+    }
+    .kec-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 11px;
+    }
+    .kec-table th {
+      background: #F8FAFC;
+      padding: 8px 10px;
+      font-size: 10px;
+      font-weight: 600;
+      color: var(--text-tertiary);
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      border-bottom: 1px solid var(--border-subtle);
+    }
+    .kec-table td {
+      padding: 7px 10px;
+      border-bottom: 1px solid #F1F5F9;
+      color: var(--text-main);
+    }
+    .kec-table tr:last-child td { border-bottom: none; }
+    .kec-table tr {
+      cursor: pointer;
+      transition: background 0.15s ease;
+    }
+    .kec-table tr:hover { background: #F8FAFC; }
+    .pct-badge {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: var(--radius-pill);
+      font-size: 10.5px;
+      font-weight: 600;
+    }
+
+    /* BASEMAP & LAYER CONTROLS */
+    .basemap-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 6px;
+    }
+    .basemap-btn {
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-md);
+      padding: 8px 6px;
+      text-align: center;
+      cursor: pointer;
+      background: #FFFFFF;
+      transition: var(--transition);
+      font-size: 11px;
+      font-weight: 500;
+      color: var(--text-muted);
+      box-shadow: var(--shadow-sm);
+    }
+    .basemap-btn i {
+      display: block;
+      font-size: 15px;
+      margin-bottom: 4px;
+      color: var(--text-tertiary);
+    }
+    .basemap-btn.active {
+      border-color: var(--primary-border);
+      color: var(--primary);
+      background: var(--primary-subtle);
+    }
+    .basemap-btn.active i { color: var(--primary); }
+    .basemap-btn:hover:not(.active) {
+      border-color: var(--border-strong);
+      color: var(--text-main);
+      background: var(--surface-hover);
+    }
+
+    .layer-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 8px 0;
+      border-bottom: 1px solid var(--border-subtle);
+      transition: var(--transition);
+    }
+    .layer-item:last-child { border-bottom: none; }
+    .layer-item-left { display: flex; align-items: center; gap: 10px; }
+    .layer-color-box {
+      width: 14px;
+      height: 14px;
+      border-radius: 4px;
+      flex-shrink: 0;
+    }
+    .layer-name { font-size: 12px; font-weight: 600; color: var(--text-main); }
+    .layer-desc { font-size: 10.5px; color: var(--text-tertiary); margin-top: 1px; }
+
+    /* TOGGLE SWITCH (Modern iOS Pill) */
+    .toggle { position: relative; width: 34px; height: 19px; flex-shrink: 0; }
+    .toggle input { opacity: 0; width: 0; height: 0; }
+    .toggle-slider {
+      position: absolute; inset: 0; background: #E2E8F0; border-radius: var(--radius-pill); cursor: pointer; transition: 0.2s;
+    }
+    .toggle-slider::before {
+      content: ''; position: absolute; width: 13px; height: 13px; background: #FFFFFF; border-radius: 50%; left: 3px; top: 3px; transition: 0.2s; box-shadow: 0 1px 3px rgba(0,0,0,0.15);
+    }
+    .toggle input:checked + .toggle-slider { background: var(--primary); }
+    .toggle input:checked + .toggle-slider::before { transform: translateX(15px); }
+
+    /* RANGE INPUT */
+    .opacity-control { padding: 4px 0; }
+    .opacity-label { display: flex; justify-content: space-between; font-size: 11px; color: var(--text-muted); margin-bottom: 6px; }
+    input[type=range] {
+      width: 100%; height: 5px; border-radius: var(--radius-pill); appearance: none; outline: none; cursor: pointer; background: #E2E8F0;
+    }
+    input[type=range]::-webkit-slider-thumb {
+      appearance: none; width: 15px; height: 15px; border-radius: 50%; background: #FFFFFF; border: 2px solid var(--primary); box-shadow: var(--shadow-sm);
+    }
+
+    /* FILTER BUTTONS */
+    .btn-filter {
+      flex: 1; padding: 6px 4px; border-radius: var(--radius-pill); border: 1px solid var(--border-subtle);
+      background: var(--surface-solid); font-size: 10.5px; font-weight: 500; cursor: pointer;
+      font-family: inherit; color: var(--text-muted); transition: var(--transition);
+    }
+    .btn-filter:hover { background: var(--surface-hover); color: var(--text-main); }
+    .btn-filter.active { background: var(--fc, var(--primary)); border-color: var(--fc, var(--primary)); color: #FFFFFF; font-weight: 600; }
+    .btn-filter#f-all.active { background: var(--primary); border-color: var(--primary); color: #FFFFFF; }
+
+    /* INFO PANEL */
+    #kec-info-panel {
+      background: #FFFFFF; border: 1px solid var(--border-subtle); border-left: 3.5px solid var(--primary);
+      border-radius: var(--radius-md); padding: 12px 14px; box-shadow: var(--shadow-sm);
+    }
+    #kec-info-panel h3 { font-size: 13px; font-weight: 700; color: var(--text-main); margin-bottom: 8px; }
+    .kec-stat-row { display: flex; justify-content: space-between; font-size: 11.5px; padding: 5px 0; border-bottom: 1px solid #F1F5F9; }
+    .kec-stat-row:last-child { border-bottom: none; }
+    .kec-stat-row .kec-key { color: var(--text-muted); }
+    .kec-stat-row .kec-val { font-weight: 600; color: var(--text-main); }
+    .badge-rawan { display: inline-block; padding: 2px 8px; border-radius: var(--radius-pill); font-size: 10.5px; font-weight: 600; }
+    .badge-rawan.tinggi { background: #FEE2E2; color: #991B1B; }
+    .badge-rawan.sedang { background: #FEF3C7; color: #92400E; }
+    .badge-rawan.rendah { background: #D1FAE5; color: #065F46; }
+
+    #chart-toggle-btn {
+      display: flex; align-items: center; justify-content: center; gap: 7px;
+      width: 100%; padding: 9px 14px;
+      background: var(--primary); color: #FFFFFF;
+      border: none; border-radius: var(--radius-md); font-size: 11.5px; font-weight: 600;
+      cursor: pointer; transition: var(--transition); font-family: inherit; box-shadow: var(--shadow-sm);
+    }
+    #chart-toggle-btn:hover { background: var(--primary-hover); transform: translateY(-1px); }
+
+    /* SIDEBAR TOGGLE BUTTON */
+    #sidebar-toggle {
+      position: absolute;
+      left: calc(var(--sidebar-w) + 24px);
+      top: 20px;
+      z-index: 510;
+      width: 32px;
+      height: 32px;
+      border-radius: var(--radius-pill);
+      background: #FFFFFF;
+      border: 1px solid var(--border-subtle);
+      box-shadow: var(--shadow-md);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--text-muted);
+      transition: left 0.35s cubic-bezier(0.16, 1, 0.3, 1), transform 0.15s, background 0.15s;
+    }
+    #sidebar-toggle:hover {
+      background: var(--primary-subtle);
+      color: var(--primary);
+      transform: scale(1.06);
+    }
+
+    /* FLOATING MAP LEGEND */
+    #map-legend {
+      position: absolute;
+      bottom: 24px;
+      left: calc(var(--sidebar-w) + 28px);
+      z-index: 490;
+      background: var(--surface-floating);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-lg);
+      padding: 12px 14px;
+      box-shadow: var(--shadow-floating);
+      min-width: 165px;
+      transition: left 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+    #map-legend h4 {
+      font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-tertiary); margin-bottom: 8px;
+    }
+    .legend-item { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; font-size: 11px; font-weight: 500; color: var(--text-muted); }
+    .legend-swatch { width: 14px; height: 9px; border-radius: 3px; flex-shrink: 0; }
+    .legend-item:last-child { margin-bottom: 0; }
+
+    /* FLOATING ACTION BUTTONS (Map stack) */
+    #map-fab {
+      position: absolute;
+      right: 16px;
+      top: 16px;
+      z-index: 490;
+      display: flex;
+      flex-direction: column;
+      background: var(--surface-floating);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-md);
+      box-shadow: var(--shadow-floating);
+      overflow: hidden;
+    }
+    .fab-btn {
+      width: 36px;
+      height: 36px;
+      background: transparent;
+      border: none;
+      border-bottom: 1px solid var(--border-subtle);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      font-size: 12px;
+      color: var(--text-muted);
+      transition: var(--transition);
+    }
+    .fab-btn:last-child { border-bottom: none; }
+    .fab-btn:hover { background: var(--primary-subtle); color: var(--primary); }
+
+    /* COORDINATES PILL */
+    #coords-display {
+      position: absolute;
+      bottom: 14px;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 490;
+      background: rgba(15, 23, 42, 0.78);
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+      color: #F8FAFC;
+      font-size: 10.5px;
+      font-weight: 500;
+      font-family: 'Plus Jakarta Sans', monospace;
+      padding: 4px 14px;
+      border-radius: var(--radius-pill);
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      pointer-events: none;
+      letter-spacing: 0.03em;
+    }
+
+    /* BOTTOM CHART DRAWER */
+    #chart-panel {
+      position: absolute;
+      left: 14px;
+      right: 14px;
+      bottom: 14px;
+      height: var(--panel-h);
+      background: var(--surface-floating);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-lg);
+      box-shadow: var(--shadow-floating);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      z-index: 520;
+      transition: transform 0.35s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.25s ease;
+    }
+    #chart-panel.collapsed {
+      transform: translateY(calc(100% + 20px));
+      opacity: 0;
+      pointer-events: none;
+    }
+    .chart-drag-handle {
+      width: 36px;
+      height: 4px;
+      background: var(--border-strong);
+      border-radius: var(--radius-pill);
+      margin: 8px auto 2px;
+      flex-shrink: 0;
+    }
+    .chart-panel-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 4px 16px 8px;
+      flex-shrink: 0;
+    }
+    .chart-panel-title h2 { font-size: 13px; font-weight: 700; color: var(--text-main); }
+    .chart-panel-title span { font-size: 11px; color: var(--text-tertiary); font-weight: 400; margin-left: 8px; }
+    .chart-body {
+      flex: 1;
+      display: grid;
+      grid-template-columns: 1fr 220px;
+      gap: 12px;
+      overflow: hidden;
+      padding: 4px 16px 14px;
+    }
+    .chart-legend-panel {
+      padding-left: 14px;
+      border-left: 1px solid var(--border-subtle);
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      overflow-y: auto;
+    }
+    .chart-legend-panel h4 { font-size: 10px; font-weight: 700; color: var(--text-tertiary); text-transform: uppercase; letter-spacing: 0.06em; }
+    .legend-row { display: flex; align-items: center; gap: 8px; font-size: 11px; color: var(--text-muted); }
+    .legend-line { width: 18px; height: 4px; border-radius: 2px; flex-shrink: 0; }
+    .ndwi-stat-box { background: #FFFFFF; border: 1px solid var(--border-subtle); border-radius: var(--radius-sm); padding: 8px 10px; box-shadow: var(--shadow-sm); }
+    .ndwi-stat-box .nsb-title { font-size: 10px; font-weight: 700; color: var(--text-tertiary); text-transform: uppercase; margin-bottom: 6px; }
+    .ndwi-row { display: flex; justify-content: space-between; font-size: 11px; padding: 2px 0; }
+    .ndwi-row .nk { color: var(--text-muted); }
+    .ndwi-row .nv { font-weight: 700; color: var(--text-main); }
+
+    /* LEAFLET POPUP & SCALE */
+    .leaflet-popup-content-wrapper {
+      border-radius: var(--radius-md) !important;
+      box-shadow: var(--shadow-popup) !important;
+      font-family: inherit !important;
+      border: 1px solid var(--border-subtle) !important;
+      padding: 4px !important;
+    }
+    .leaflet-popup-content { font-size: 12px !important; margin: 10px 14px !important; }
+    .popup-title {
+      font-weight: 700; font-size: 13.5px; color: var(--text-main); margin-bottom: 8px; border-bottom: 2px solid var(--primary); padding-bottom: 6px;
+    }
+    .popup-row { display: flex; justify-content: space-between; padding: 4px 0; font-size: 11.5px; border-bottom: 1px solid #F1F5F9; }
+    .popup-row:last-child { border-bottom: none; }
+    .popup-key { color: var(--text-muted); }
+    .popup-val { font-weight: 600; color: var(--text-main); }
+    .leaflet-control-scale-line {
+      border: 1.5px solid var(--text-muted) !important;
+      border-top: none !important;
+      font-family: inherit !important;
+      font-size: 10px !important;
+      font-weight: 600 !important;
+      color: var(--text-muted) !important;
+      background: rgba(255,255,255,0.92) !important;
+      padding: 2px 8px !important;
+      border-radius: 0 0 4px 4px !important;
+      box-shadow: var(--shadow-sm) !important;
+    }
+
+    /* LOADING OVERLAY */
+    #loading-overlay {
+      position: fixed; inset: 0; z-index: 9999;
+      background: #FFFFFF;
+      display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 16px;
+      transition: opacity 0.5s ease;
+    }
+    #loading-overlay.fade-out { opacity: 0; pointer-events: none; }
+    .loading-icon {
+      width: 52px; height: 52px; border-radius: var(--radius-lg); background: var(--primary-subtle);
+      border: 1px solid var(--primary-border); display: flex; align-items: center; justify-content: center;
+      font-size: 22px; color: var(--primary); animation: pulse 1.5s ease-in-out infinite;
+    }
+    .loading-title { font-size: 17px; font-weight: 700; color: var(--text-main); text-align: center; }
+    .loading-sub { font-size: 12px; color: var(--text-tertiary); text-align: center; }
+    .loading-bar-wrap { width: 200px; height: 4px; background: #F1F5F9; border-radius: var(--radius-pill); overflow: hidden; }
+    .loading-bar { height: 100%; background: var(--primary); border-radius: var(--radius-pill); animation: loadbar 1.6s ease-in-out infinite; }
+    @keyframes loadbar { 0% { width: 0%; } 50% { width: 70%; } 100% { width: 100%; } }
+    @keyframes pulse { 0%, 100% { transform: scale(1); } 50% { transform: scale(0.95); opacity: 0.8; } }
 
     /* MODAL LAYOUT PETA */
-    .modal-backdrop{
-      position:fixed;inset:0;z-index:9990;
-      background:rgba(10,25,47,0.75);backdrop-filter:blur(6px);
-      display:none;align-items:center;justify-content:center;
-      opacity:0;transition:opacity 0.25s ease;
-      padding:16px;
+    .modal-backdrop {
+      position: fixed; inset: 0; z-index: 9990;
+      background: rgba(15, 23, 42, 0.6); backdrop-filter: blur(6px);
+      display: none; align-items: center; justify-content: center;
+      opacity: 0; transition: opacity 0.25s ease;
+      padding: 16px;
     }
-    .modal-backdrop.show{
-      display:flex;opacity:1;
+    .modal-backdrop.show { display: flex; opacity: 1; }
+    .modal-dialog {
+      background: #FFFFFF; border-radius: var(--radius-xl);
+      box-shadow: 0 25px 50px -12px rgba(15, 23, 42, 0.25); border: 1px solid var(--border-subtle);
+      width: 95vw; max-width: 1280px; max-height: 92vh;
+      display: flex; flex-direction: column; overflow: hidden;
+      animation: modalZoomIn 0.25s cubic-bezier(0.16, 1, 0.3, 1);
     }
-    .modal-dialog{
-      background:var(--bg-surface);border-radius:var(--radius-lg);
-      box-shadow:0 24px 48px rgba(0,0,0,0.35);border:1px solid var(--border);
-      width:95vw;max-width:1300px;max-height:92vh;
-      display:flex;flex-direction:column;overflow:hidden;
-      animation:modalZoomIn 0.25s cubic-bezier(0.16,1,0.3,1);
+    @keyframes modalZoomIn { from { transform: scale(0.96); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+    .modal-header {
+      padding: 12px 18px; background: #FFFFFF; border-bottom: 1px solid var(--border-subtle);
+      display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-shrink: 0;
     }
-    @keyframes modalZoomIn{
-      from{transform:scale(0.95);opacity:0;}
-      to{transform:scale(1);opacity:1;}
+    .modal-title { display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 700; color: var(--text-main); }
+    .modal-title i { color: var(--primary); }
+    .badge-a4 {
+      background: var(--primary-subtle); color: var(--primary); font-size: 10.5px; font-weight: 600;
+      padding: 3px 9px; border-radius: var(--radius-pill); border: 1px solid var(--primary-border);
     }
-    .modal-header{
-      padding:12px 18px;background:var(--bg-surface);border-bottom:1px solid var(--border);
-      display:flex;align-items:center;justify-content:space-between;gap:12px;
-      flex-shrink:0;
+    .modal-actions { display: flex; align-items: center; gap: 8px; }
+    .modal-btn {
+      display: inline-flex; align-items: center; gap: 6px;
+      padding: 6px 12px; border-radius: var(--radius-pill); font-size: 11.5px; font-weight: 600;
+      font-family: inherit; text-decoration: none; cursor: pointer; border: none; transition: var(--transition);
     }
-    .modal-title{
-      display:flex;align-items:center;gap:8px;font-size:13px;font-weight:600;color:var(--text-primary);
+    .btn-print { background: var(--primary); color: #FFFFFF; }
+    .btn-print:hover { background: var(--primary-hover); }
+    .btn-download { background: var(--surface-subtle); color: var(--text-main); border: 1px solid var(--border-subtle); }
+    .btn-download:hover { background: var(--surface-hover); }
+    .btn-newtab { background: var(--surface-subtle); color: var(--text-muted); border: 1px solid var(--border-subtle); padding: 6px 10px; }
+    .btn-newtab:hover { background: var(--surface-hover); color: var(--text-main); }
+    .modal-close {
+      background: none; border: none; font-size: 20px; line-height: 1; color: var(--text-tertiary);
+      cursor: pointer; padding: 4px 8px; border-radius: var(--radius-pill); transition: var(--transition);
     }
-    .modal-title i{color:var(--primary);font-size:14px;}
-    .badge-a4{
-      background:var(--primary-subtle);color:var(--primary-dark);font-size:10.5px;font-weight:500;
-      padding:2px 8px;border-radius:var(--radius-xs);border:1px solid var(--primary-muted);
+    .modal-close:hover { color: #DC2626; background: #FEE2E2; }
+    .modal-body {
+      flex: 1; overflow: auto; padding: 14px; background: #F8FAFC;
+      display: flex; align-items: center; justify-content: center;
     }
-    .modal-actions{display:flex;align-items:center;gap:6px;}
-    .modal-btn{
-      display:inline-flex;align-items:center;gap:5px;
-      padding:6px 12px;border-radius:var(--radius-sm);font-size:11.5px;font-weight:500;
-      font-family:'Inter',sans-serif;text-decoration:none;cursor:pointer;
-      border:none;transition:var(--transition);
+    .layout-img-container {
+      max-width: 100%; display: flex; justify-content: center; align-items: center;
+      box-shadow: var(--shadow-md); border-radius: var(--radius-md); overflow: hidden; background: #FFFFFF;
     }
-    .btn-print{background:var(--primary);color:#fff;}
-    .btn-print:hover{background:var(--primary-dark);}
-    .btn-download{background:var(--bg-subtle);color:var(--text-primary);border:1px solid var(--border);}
-    .btn-download:hover{background:var(--bg-hover);border-color:var(--border-strong);}
-    .btn-newtab{background:var(--bg-subtle);color:var(--text-secondary);border:1px solid var(--border);padding:6px 10px;}
-    .btn-newtab:hover{background:var(--bg-hover);color:var(--text-primary);}
-    .modal-close{
-      background:none;border:none;font-size:20px;line-height:1;color:var(--text-light);
-      cursor:pointer;padding:4px 8px;border-radius:var(--radius-sm);transition:var(--transition);
+    .layout-img-container img {
+      display: block; max-width: 100%; max-height: calc(92vh - 120px); width: auto; height: auto; object-fit: contain;
     }
-    .modal-close:hover{color:var(--danger);background:#FEE2E2;}
-    .modal-body{
-      flex:1;overflow:auto;padding:14px;background:var(--bg-subtle);
-      display:flex;align-items:center;justify-content:center;
+    .modal-footer {
+      padding: 10px 18px; background: #FFFFFF; border-top: 1px solid var(--border-subtle);
+      display: flex; align-items: center; justify-content: space-between; font-size: 11px; color: var(--text-muted); flex-shrink: 0;
     }
-    .layout-img-container{
-      max-width:100%;display:flex;justify-content:center;align-items:center;
-      box-shadow:var(--shadow-floating);border-radius:var(--radius-sm);overflow:hidden;
-      background:#fff;
-    }
-    .layout-img-container img{
-      display:block;max-width:100%;max-height:calc(92vh - 120px);
-      width:auto;height:auto;object-fit:contain;
-    }
-    .modal-footer{
-      padding:8px 18px;background:var(--bg-surface);border-top:1px solid var(--border);
-      display:flex;align-items:center;justify-content:space-between;
-      font-size:11px;color:var(--text-secondary);flex-shrink:0;
-    }
-    .modal-info{display:flex;align-items:center;gap:6px;}
-    .modal-info i{color:var(--primary);}
-    .modal-info-right{font-weight:500;color:var(--text-light);}
 
-    /* PRINT STYLES - CETAK HANYA GAMBAR LAYOUT PETA A4 RESMI */
-    #print-layout-container{display:none;}
-    @media print{
-      @page{size:A4 landscape;margin:0;}
-      html,body{background:#fff !important;margin:0 !important;padding:0 !important;overflow:visible !important;height:100% !important;}
-      #header,#app,#loading-overlay,.modal-backdrop{display:none !important;}
-      #print-layout-container{
-        display:flex !important;align-items:center;justify-content:center;
-        position:fixed;top:0;left:0;width:100vw;height:100vh;
-        background:#fff;z-index:999999;
+    /* PRINT STYLES */
+    #print-layout-container { display: none; }
+    @media print {
+      @page { size: A4 landscape; margin: 0; }
+      html, body { background: #FFFFFF !important; margin: 0 !important; padding: 0 !important; overflow: visible !important; height: 100% !important; }
+      #header, #app, #loading-overlay, .modal-backdrop { display: none !important; }
+      #print-layout-container {
+        display: flex !important; align-items: center; justify-content: center;
+        position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: #FFFFFF; z-index: 999999;
       }
-      #print-layout-container img{
-        width:100%;height:100%;object-fit:contain;
-      }
+      #print-layout-container img { width: 100%; height: 100%; object-fit: contain; }
     }
   </style>
 </head>
@@ -383,15 +828,15 @@
   <div class="header-left">
     <div class="logo-box"><i class="fas fa-water"></i></div>
     <div class="title-box">
-      <h1>WebGIS Sebaran Genangan &amp; Daerah Rawan Banjir Kota Pontianak</h1>
-      <p><i class="fas fa-graduation-cap" style="margin-right:4px"></i>Analisis Time-Series NDWI &nbsp;|&nbsp; Gemilang Imanuel Perdana (D1041221024) &nbsp;|&nbsp; Universitas Tanjungpura</p>
+      <h1>WebGIS Sebaran Genangan &amp; Kerawanan Banjir Kota Pontianak</h1>
+      <p><i class="fas fa-graduation-cap"></i>NDWI Time-Series (2020–2024) &bull; Gemilang Imanuel Perdana (D1041221024) &bull; Universitas Tanjungpura</p>
     </div>
   </div>
   <div class="header-right">
-    <div class="header-badge"><i class="fas fa-satellite-dish" style="margin-right:6px"></i>Sentinel-2 &bull; GEE</div>
-    <div class="header-badge"><i class="fas fa-clock" style="margin-right:6px"></i>2020–2024</div>
-    <button class="btn-icon" onclick="showAbout()" title="Informasi Penelitian"><i class="fas fa-info-circle"></i></button>
-    <button class="btn-icon" onclick="openLayoutModal()" title="Lihat &amp; Cetak Layout Peta Formal (A4 Standar Kartografi)"><i class="fas fa-print"></i></button>
+    <div class="header-badge"><span class="live-dot"></span>Sentinel-2 &bull; GEE</div>
+    <div class="header-badge"><i class="fas fa-calendar-alt" style="font-size:11px;"></i>2020–2024</div>
+    <button class="btn-header" onclick="showAbout()" title="Informasi Penelitian"><i class="fas fa-info-circle"></i><span>Tentang</span></button>
+    <button class="btn-header" onclick="openLayoutModal()" title="Lihat &amp; Cetak Layout Peta Formal (A4 Standar Kartografi)"><i class="fas fa-print"></i><span>Cetak Peta A4</span></button>
   </div>
 </header>
 
@@ -441,51 +886,59 @@
 <div id="app">
   <aside id="sidebar">
     <div class="sidebar-tabs">
-      <button class="tab-btn active" onclick="switchTab('statistik',this)"><i class="fas fa-chart-bar"></i>Statistik</button>
+      <button class="tab-btn active" onclick="switchTab('statistik',this)"><i class="fas fa-chart-pie"></i>Statistik</button>
       <button class="tab-btn" onclick="switchTab('layer',this)"><i class="fas fa-layer-group"></i>Layer</button>
-      <button class="tab-btn" onclick="switchTab('info',this)"><i class="fas fa-map-marker-alt"></i>Area</button>
+      <button class="tab-btn" onclick="switchTab('info',this)"><i class="fas fa-info-circle"></i>Detail Area</button>
     </div>
 
     <div class="tab-panel active" id="tab-statistik">
       <div class="section-title">Ringkasan Kota Pontianak</div>
       <div class="stat-grid">
-        <div class="stat-card blue"><div class="stat-value">111,65</div><div class="stat-label">Luas Total (km²)</div></div>
-        <div class="stat-card red"><div class="stat-value">48,60</div><div class="stat-label">Rawan Tinggi (ha)</div></div>
-        <div class="stat-card orange"><div class="stat-value">127,31</div><div class="stat-label">Rawan Sedang (ha)</div></div>
-        <div class="stat-card green"><div class="stat-value">606,21</div><div class="stat-label">Rawan Rendah (ha)</div></div>
+        <div class="stat-card blue"><div class="stat-label">Luas Total</div><div class="stat-value">111,65 <span style="font-size:11px;font-weight:500;color:var(--text-tertiary)">km²</span></div></div>
+        <div class="stat-card red"><div class="stat-label">Rawan Tinggi</div><div class="stat-value">48,60 <span style="font-size:11px;font-weight:500;color:var(--text-tertiary)">ha</span></div></div>
+        <div class="stat-card orange"><div class="stat-label">Rawan Sedang</div><div class="stat-value">127,31 <span style="font-size:11px;font-weight:500;color:var(--text-tertiary)">ha</span></div></div>
+        <div class="stat-card green"><div class="stat-label">Rawan Rendah</div><div class="stat-value">606,21 <span style="font-size:11px;font-weight:500;color:var(--text-tertiary)">ha</span></div></div>
       </div>
-      <div class="section-title"><i class="fas fa-percentage" style="margin-right:6px"></i>Distribusi Kerawanan Banjir</div>
+      <div class="section-title">Distribusi Tingkat Kerawanan</div>
       <div>
-        <div class="kerawanan-item"><div class="kerawanan-header"><div class="kerawanan-label"><div class="kerawanan-dot" style="background:#EEEEEE;border:1px solid #BDBDBD"></div>Tidak Pernah Tergenang</div><span class="kerawanan-pct">92,99%</span></div><div class="progress-bar"><div class="progress-fill" style="width:92.99%;background:#BDBDBD"></div></div></div>
+        <div class="kerawanan-item"><div class="kerawanan-header"><div class="kerawanan-label"><div class="kerawanan-dot" style="background:#E2E8F0;border:1px solid #CBD5E1"></div>Tidak Pernah Tergenang</div><span class="kerawanan-pct">92,99%</span></div><div class="progress-bar"><div class="progress-fill" style="width:92.99%;background:#94A3B8"></div></div></div>
         <div class="kerawanan-item"><div class="kerawanan-header"><div class="kerawanan-label"><div class="kerawanan-dot" style="background:var(--rawan-rendah)"></div>Rawan Rendah</div><span class="kerawanan-pct">5,43%</span></div><div class="progress-bar"><div class="progress-fill" style="width:5.43%;background:var(--rawan-rendah)"></div></div></div>
         <div class="kerawanan-item"><div class="kerawanan-header"><div class="kerawanan-label"><div class="kerawanan-dot" style="background:var(--rawan-sedang)"></div>Rawan Sedang</div><span class="kerawanan-pct">1,14%</span></div><div class="progress-bar"><div class="progress-fill" style="width:1.14%;background:var(--rawan-sedang)"></div></div></div>
         <div class="kerawanan-item"><div class="kerawanan-header"><div class="kerawanan-label"><div class="kerawanan-dot" style="background:var(--rawan-tinggi)"></div>Rawan Tinggi</div><span class="kerawanan-pct">0,44%</span></div><div class="progress-bar"><div class="progress-fill" style="width:0.44%;background:var(--rawan-tinggi)"></div></div></div>
       </div>
-      <div class="section-title"><i class="fas fa-table" style="margin-right:6px"></i>Data Per Kecamatan</div>
-      <table style="width:100%;border-collapse:collapse;font-size:11px;">
-        <thead><tr style="background:#EDF2F7;"><th style="padding:6px 8px;text-align:left;font-weight:700;color:#4A5568;border-bottom:2px solid #CBD5E0;">Kecamatan</th><th style="padding:6px 4px;text-align:center;font-weight:700;color:#4A5568;border-bottom:2px solid #CBD5E0;">Tergenang<br>(ha)</th><th style="padding:6px 4px;text-align:center;font-weight:700;color:#4A5568;border-bottom:2px solid #CBD5E0;">% Wilayah</th></tr></thead>
-        <tbody id="kec-tbody"></tbody>
-      </table>
+      <div class="section-title">Data Luas Per Kecamatan</div>
+      <div class="kec-table-card">
+        <table class="kec-table">
+          <thead>
+            <tr>
+              <th style="text-align:left;">Kecamatan</th>
+              <th style="text-align:center;">Tergenang (ha)</th>
+              <th style="text-align:center;">% Wilayah</th>
+            </tr>
+          </thead>
+          <tbody id="kec-tbody"></tbody>
+        </table>
+      </div>
     </div>
 
     <div class="tab-panel" id="tab-layer">
-      <div class="section-title"><i class="fas fa-th-large" style="margin-right:6px"></i>Basemap</div>
+      <div class="section-title">Pilihan Basemap</div>
       <div class="basemap-grid">
         <div class="basemap-btn active" onclick="setBasemap('osm',this)"><i class="fas fa-map"></i>OpenStreetMap</div>
         <div class="basemap-btn" onclick="setBasemap('satellite',this)"><i class="fas fa-satellite"></i>Satellite</div>
         <div class="basemap-btn" onclick="setBasemap('topo',this)"><i class="fas fa-mountain"></i>Topografi</div>
         <div class="basemap-btn" onclick="setBasemap('dark',this)"><i class="fas fa-moon"></i>Dark Mode</div>
       </div>
-      <div class="section-title"><i class="fas fa-layer-group" style="margin-right:6px"></i>Layer Tematik</div>
-      <div style="display:flex;flex-direction:column;gap:8px;">
-        <div class="layer-item"><div class="layer-item-left"><div class="layer-color-box" style="background:var(--rawan-tinggi);opacity:0.75;"></div><div><div class="layer-name">Kerawanan Banjir</div><div class="layer-desc">Hasil klasifikasi frekuensi genangan</div></div></div><label class="toggle"><input type="checkbox" id="toggle-kerawanan" checked onchange="toggleLayer('kerawanan',this)"><span class="toggle-slider"></span></label></div>
-        <div class="layer-item"><div class="layer-item-left"><div class="layer-color-box" style="background:#1A1A1A;opacity:0.8;"></div><div><div class="layer-name">Batas Administrasi</div><div class="layer-desc">Wilayah kecamatan Kota Pontianak</div></div></div><label class="toggle"><input type="checkbox" id="toggle-batas" checked onchange="toggleLayer('batas',this)"><span class="toggle-slider"></span></label></div>
-        <div class="layer-item"><div class="layer-item-left"><div class="layer-color-box" style="background:#81D4FA;border:1.5px solid #0288D1;"></div><div><div class="layer-name">Badan Air (Sungai)</div><div class="layer-desc">Sungai Kapuas, Landak, Tempayan</div></div></div><label class="toggle"><input type="checkbox" id="toggle-sungai" checked onchange="toggleLayer('sungai',this)"><span class="toggle-slider"></span></label></div>
-        <div class="layer-item"><div class="layer-item-left"><div class="layer-color-box" style="background:#6B7280;"></div><div><div class="layer-name">Label Kecamatan</div><div class="layer-desc">Nama wilayah di peta</div></div></div><label class="toggle"><input type="checkbox" id="toggle-label" checked onchange="toggleLayer('label',this)"><span class="toggle-slider"></span></label></div>
+      <div class="section-title">Layer Tematik</div>
+      <div style="display:flex;flex-direction:column;gap:4px;">
+        <div class="layer-item"><div class="layer-item-left"><div class="layer-color-box" style="background:var(--rawan-tinggi);opacity:0.85;"></div><div><div class="layer-name">Kerawanan Banjir</div><div class="layer-desc">Klasifikasi frekuensi genangan NDWI</div></div></div><label class="toggle"><input type="checkbox" id="toggle-kerawanan" checked onchange="toggleLayer('kerawanan',this)"><span class="toggle-slider"></span></label></div>
+        <div class="layer-item"><div class="layer-item-left"><div class="layer-color-box" style="background:#0F172A;opacity:0.85;"></div><div><div class="layer-name">Batas Administrasi</div><div class="layer-desc">Wilayah kecamatan Kota Pontianak</div></div></div><label class="toggle"><input type="checkbox" id="toggle-batas" checked onchange="toggleLayer('batas',this)"><span class="toggle-slider"></span></label></div>
+        <div class="layer-item"><div class="layer-item-left"><div class="layer-color-box" style="background:#38BDF8;border:1px solid #0284C7;"></div><div><div class="layer-name">Badan Air (Sungai)</div><div class="layer-desc">Sungai Kapuas, Landak, Tempayan</div></div></div><label class="toggle"><input type="checkbox" id="toggle-sungai" checked onchange="toggleLayer('sungai',this)"><span class="toggle-slider"></span></label></div>
+        <div class="layer-item"><div class="layer-item-left"><div class="layer-color-box" style="background:#64748B;"></div><div><div class="layer-name">Label Kecamatan</div><div class="layer-desc">Nama wilayah di peta</div></div></div><label class="toggle"><input type="checkbox" id="toggle-label" checked onchange="toggleLayer('label',this)"><span class="toggle-slider"></span></label></div>
       </div>
-      <div class="section-title"><i class="fas fa-adjust" style="margin-right:6px"></i>Transparansi Layer</div>
-      <div class="opacity-control"><div class="opacity-label"><span>Opacity Layer Kerawanan</span><span id="opacity-val">70%</span></div><input type="range" min="10" max="100" value="70" oninput="setLayerOpacity(this)" /></div>
-      <div class="section-title"><i class="fas fa-filter" style="margin-right:6px"></i>Filter Kerawanan</div>
+      <div class="section-title">Transparansi Layer</div>
+      <div class="opacity-control"><div class="opacity-label"><span>Opacity Kerawanan</span><span id="opacity-val">70%</span></div><input type="range" min="10" max="100" value="70" oninput="setLayerOpacity(this)" /></div>
+      <div class="section-title">Filter Kelas Kerawanan</div>
       <div style="display:flex;gap:6px;">
         <button class="btn-filter active" id="f-all" onclick="filterKerawanan('all',this)">Semua</button>
         <button class="btn-filter" id="f-tinggi" onclick="filterKerawanan('Rawan Tinggi',this)" style="--fc:var(--rawan-tinggi)">Tinggi</button>
@@ -495,10 +948,10 @@
     </div>
 
     <div class="tab-panel" id="tab-info">
-      <div class="section-title"><i class="fas fa-mouse-pointer" style="margin-right:6px"></i>Klik Area di Peta</div>
+      <div class="section-title">Detail Informasi Area</div>
       <div id="kec-info-panel">
-        <h3 id="kec-info-name"><i class="fas fa-hand-pointer" style="margin-right:6px;color:var(--accent)"></i>Pilih Kecamatan</h3>
-        <p id="kec-info-empty" style="font-size:11.5px;color:var(--text-light);line-height:1.6;">Klik pada salah satu kecamatan di peta untuk melihat informasi detail dan statistik kerawanan banjirnya.</p>
+        <h3 id="kec-info-name"><i class="fas fa-hand-pointer" style="margin-right:6px;color:var(--primary)"></i>Pilih Kecamatan</h3>
+        <p id="kec-info-empty" style="font-size:11.5px;color:var(--text-tertiary);line-height:1.6;">Klik pada salah satu kecamatan di peta untuk melihat statistik dan grafik detail kerawanan banjir.</p>
         <div id="kec-info-detail" style="display:none;">
           <div class="kec-stat-row"><span class="kec-key">Kecamatan</span><span class="kec-val" id="ki-nama">-</span></div>
           <div class="kec-stat-row"><span class="kec-key">Luas Wilayah</span><span class="kec-val" id="ki-luas">-</span></div>
@@ -510,34 +963,34 @@
           <div class="kec-stat-row"><span class="kec-key">% Rawan Tinggi</span><span class="kec-val" id="ki-pct-tinggi">-</span></div>
         </div>
       </div>
-      <div class="section-title" style="margin-top:4px"><i class="fas fa-chart-bar" style="margin-right:6px"></i>Grafik &amp; Distribusi</div>
+      <div class="section-title" style="margin-top:6px">Grafik Distribusi</div>
       <button id="chart-toggle-btn" onclick="toggleChart()"><i class="fas fa-chart-bar"></i><span id="chart-toggle-label">Tampilkan Grafik Kerawanan</span></button>
-      <div style="background:#F7FAFC;border:1px solid var(--border);border-radius:var(--radius-sm);padding:10px;">
+      <div style="background:#FFFFFF;border:1px solid var(--border-subtle);border-radius:var(--radius-md);padding:10px;box-shadow:var(--shadow-sm);">
         <canvas id="mini-chart" height="120" style="display:none;"></canvas>
-        <div id="mini-chart-empty" style="text-align:center;font-size:11px;color:var(--text-light);padding:20px 0;"><i class="fas fa-chart-bar" style="font-size:24px;color:#CBD5E0;display:block;margin-bottom:8px"></i>Pilih kecamatan di peta</div>
+        <div id="mini-chart-empty" style="text-align:center;font-size:11px;color:var(--text-tertiary);padding:24px 0;"><i class="fas fa-chart-pie" style="font-size:24px;color:#CBD5E1;display:block;margin-bottom:8px"></i>Pilih wilayah kecamatan di peta</div>
       </div>
     </div>
   </aside>
 
-  <button id="sidebar-toggle" onclick="toggleSidebar()"><i class="fas fa-chevron-left" id="sidebar-toggle-icon"></i></button>
+  <button id="sidebar-toggle" onclick="toggleSidebar()" title="Sembunyikan/Tampilkan Panel"><i class="fas fa-chevron-left" id="sidebar-toggle-icon"></i></button>
 
-  <div id="main">
-    <div id="map-wrap" style="flex:1;position:relative;overflow:hidden;min-height:0;">
-      <div id="map" style="width:100%;height:100%;"></div>
+  <main id="main">
+    <div id="map-wrap">
+      <div id="map"></div>
       <div id="map-legend">
         <h4>Kerawanan Banjir</h4>
-        <div class="legend-item"><div class="legend-swatch" style="background:#EEEEEE;border:1px solid #BDBDBD;"></div><span>Tidak Pernah Tergenang</span></div>
-        <div class="legend-item"><div class="legend-swatch" style="background:#FDD835;opacity:0.85;"></div><span>Rawan Rendah</span></div>
-        <div class="legend-item"><div class="legend-swatch" style="background:#FF8F00;opacity:0.85;"></div><span>Rawan Sedang</span></div>
-        <div class="legend-item"><div class="legend-swatch" style="background:#D32F2F;opacity:0.85;"></div><span>Rawan Tinggi</span></div>
-        <div class="legend-item"><div class="legend-swatch" style="background:#81D4FA;border:1px solid #0288D1;"></div><span>Badan Air</span></div>
-        <div style="border-top:1px solid var(--border);margin-top:8px;padding-top:8px;">
-          <div class="legend-item"><div class="legend-swatch" style="background:transparent;border:2px solid #1A1A1A;"></div><span>Batas Administrasi</span></div>
+        <div class="legend-item"><div class="legend-swatch" style="background:#E2E8F0;border:1px solid #CBD5E1;"></div><span>Tidak Tergenang</span></div>
+        <div class="legend-item"><div class="legend-swatch" style="background:#EAB308;"></div><span>Rawan Rendah</span></div>
+        <div class="legend-item"><div class="legend-swatch" style="background:#EA580C;"></div><span>Rawan Sedang</span></div>
+        <div class="legend-item"><div class="legend-swatch" style="background:#DC2626;"></div><span>Rawan Tinggi</span></div>
+        <div class="legend-item"><div class="legend-swatch" style="background:#38BDF8;border:1px solid #0284C7;"></div><span>Badan Air</span></div>
+        <div style="border-top:1px solid var(--border-subtle);margin-top:8px;padding-top:8px;">
+          <div class="legend-item"><div class="legend-swatch" style="background:transparent;border:2px solid #0F172A;"></div><span>Batas Administrasi</span></div>
         </div>
-        <div style="font-size:9.5px;color:var(--text-light);margin-top:6px;padding-top:6px;border-top:1px solid var(--border);display:flex;align-items:center;gap:4px;"><i class="fas fa-globe-asia" style="color:var(--primary)"></i>UTM WGS 84 Zona 49S</div>
+        <div style="font-size:9.5px;color:var(--text-tertiary);margin-top:6px;padding-top:6px;border-top:1px solid var(--border-subtle);display:flex;align-items:center;gap:5px;"><i class="fas fa-compass" style="color:var(--primary)"></i>UTM WGS 84 Zona 49S</div>
       </div>
       <div id="map-fab">
-        <div class="fab-btn" style="cursor:default;flex-direction:column;gap:1px;font-size:9.5px;font-weight:800;color:#1A2332;" title="Arah Utara"><i class="fas fa-location-arrow" style="transform:rotate(-45deg);font-size:12px;color:#D32F2F;"></i>U</div>
+        <div class="fab-btn" style="cursor:default;flex-direction:column;gap:1px;font-size:9.5px;font-weight:800;color:var(--text-main);" title="Arah Utara"><i class="fas fa-location-arrow" style="transform:rotate(-45deg);font-size:11px;color:#DC2626;"></i>U</div>
         <button class="fab-btn" onclick="map.zoomIn()" title="Perbesar"><i class="fas fa-plus"></i></button>
         <button class="fab-btn" onclick="map.zoomOut()" title="Perkecil"><i class="fas fa-minus"></i></button>
         <button class="fab-btn" onclick="resetView()" title="Tampilan Awal"><i class="fas fa-home"></i></button>
@@ -546,30 +999,32 @@
 
       <div id="coords-display">Lat: -0.0250 &nbsp;|&nbsp; Lng: 109.3400</div>
     </div>
+
     <div id="chart-panel" class="collapsed">
+      <div class="chart-drag-handle"></div>
       <div class="chart-panel-header">
-        <div class="chart-panel-title"><i class="fas fa-chart-bar" style="color:var(--primary);font-size:16px"></i><h2>Distribusi Luas Kerawanan Banjir</h2><span>Luas area terdampak per kecamatan (ha) &nbsp;|&nbsp; Data: Hasil analisis NDWI 2020–2024</span></div>
+        <div class="chart-panel-title"><i class="fas fa-chart-bar" style="color:var(--primary);font-size:15px;margin-right:6px"></i><h2 style="display:inline-block">Distribusi Luas Kerawanan Banjir</h2><span>Luas terdampak per kecamatan (ha) &bull; Sentinel-2 NDWI</span></div>
         <div class="chart-controls">
-          <button class="fab-btn" onclick="toggleChart()" style="width:28px;height:28px;"><i class="fas fa-times" style="font-size:11px"></i></button>
+          <button class="fab-btn" onclick="toggleChart()" style="width:28px;height:28px;border-radius:var(--radius-pill);border:1px solid var(--border-subtle);"><i class="fas fa-times" style="font-size:11px"></i></button>
         </div>
       </div>
       <div class="chart-body">
         <canvas id="ndwi-chart"></canvas>
         <div class="chart-legend-panel">
           <h4>Kelas Kerawanan</h4>
-          <div class="legend-row"><div class="legend-line" style="background:#FDD835;height:10px;border-radius:2px;"></div><span>Rawan Rendah</span></div>
-          <div class="legend-row"><div class="legend-line" style="background:#FF8F00;height:10px;border-radius:2px;"></div><span>Rawan Sedang</span></div>
-          <div class="legend-row"><div class="legend-line" style="background:#D32F2F;height:10px;border-radius:2px;"></div><span>Rawan Tinggi</span></div>
+          <div class="legend-row"><div class="legend-line" style="background:#EAB308;"></div><span>Rawan Rendah</span></div>
+          <div class="legend-row"><div class="legend-line" style="background:#EA580C;"></div><span>Rawan Sedang</span></div>
+          <div class="legend-row"><div class="legend-line" style="background:#DC2626;"></div><span>Rawan Tinggi</span></div>
           <div class="ndwi-stat-box" style="margin-top:4px;">
-            <div class="nsb-title">Total Kota Pontianak</div>
-            <div class="ndwi-row"><span class="nk">Rawan Rendah</span><span class="nv" style="color:#B8860B;">606,21 ha</span></div>
-            <div class="ndwi-row"><span class="nk">Rawan Sedang</span><span class="nv" style="color:#E65100;">127,31 ha</span></div>
-            <div class="ndwi-row"><span class="nk">Rawan Tinggi</span><span class="nv" style="color:#B71C1C;">48,60 ha</span></div>
-            <div class="ndwi-row"><span class="nk">Total Tergenang</span><span class="nv">782,52 ha</span></div>
+            <div class="nsb-title">Total Tergenang Pontianak</div>
+            <div class="ndwi-row"><span class="nk">Rawan Rendah</span><span class="nv" style="color:#B45309;">606,21 ha</span></div>
+            <div class="ndwi-row"><span class="nk">Rawan Sedang</span><span class="nv" style="color:#C2410C;">127,31 ha</span></div>
+            <div class="ndwi-row"><span class="nk">Rawan Tinggi</span><span class="nv" style="color:#B91C1C;">48,60 ha</span></div>
+            <div class="ndwi-row" style="margin-top:4px;border-top:1px dashed var(--border-subtle);padding-top:4px;"><span class="nk" style="font-weight:600;">Total</span><span class="nv" style="color:var(--primary)">782,52 ha</span></div>
           </div>
           <div class="ndwi-stat-box">
             <div class="nsb-title">Klasifikasi Frekuensi</div>
-            <div class="ndwi-row"><span class="nk">Kelas 0 (0 bln)</span><span class="nv">Tdk Tergenang</span></div>
+            <div class="ndwi-row"><span class="nk">Kelas 0 (0 bln)</span><span class="nv">Tidak Tergenang</span></div>
             <div class="ndwi-row"><span class="nk">Kelas 1 (1–3 bln)</span><span class="nv">Rendah</span></div>
             <div class="ndwi-row"><span class="nk">Kelas 2 (4–13 bln)</span><span class="nv">Sedang</span></div>
             <div class="ndwi-row"><span class="nk">Kelas 3 (14–38 bln)</span><span class="nv">Tinggi</span></div>
@@ -577,7 +1032,7 @@
         </div>
       </div>
     </div>
-  </div>
+  </main>
 </div>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
@@ -891,8 +1346,10 @@ function toggleSidebar(){
   sidebarOpen=!sidebarOpen;
   document.getElementById('sidebar').classList.toggle('collapsed',!sidebarOpen);
   document.getElementById('sidebar-toggle-icon').className=sidebarOpen?'fas fa-chevron-left':'fas fa-chevron-right';
-  document.getElementById('sidebar-toggle').style.left=sidebarOpen?'calc(var(--sidebar-w) + 8px)':'8px';
-  setTimeout(()=>map.invalidateSize(),300);
+  document.getElementById('sidebar-toggle').style.left=sidebarOpen?'calc(var(--sidebar-w) + 24px)':'16px';
+  const leg = document.getElementById('map-legend');
+  if(leg) leg.style.left = sidebarOpen ? 'calc(var(--sidebar-w) + 28px)' : '16px';
+  setTimeout(()=>map.invalidateSize(),350);
 }
 
 let chartOpen=false;
@@ -965,12 +1422,13 @@ function buildKecTable(){
   const sorted=Object.entries(KEC_DATA).sort((a,b)=>b[1].pct_tergenang-a[1].pct_tergenang);
   sorted.forEach(([name,d])=>{
     const shortName=name.replace('Pontianak ','Ptk. ');
-    const pctColor=d.pct_tergenang>10?'#D32F2F':d.pct_tergenang>7?'#FF8F00':'#2E7D32';
+    const badgeBg = d.pct_tergenang>10 ? 'background:#FEE2E2;color:#991B1B;' : (d.pct_tergenang>7 ? 'background:#FEF3C7;color:#92400E;' : 'background:#DCFCE7;color:#166534;');
     const tr=document.createElement('tr');
-    tr.style.cursor='pointer';tr.style.transition='background 0.2s';
-    tr.innerHTML=`<td style="padding:6px 8px;border-bottom:1px solid #EDF2F7;font-weight:500;font-size:11px;">${shortName}</td><td style="padding:6px 4px;border-bottom:1px solid #EDF2F7;text-align:center;font-size:11px;font-weight:600;">${d.total_tergenang.toFixed(1)}</td><td style="padding:6px 4px;border-bottom:1px solid #EDF2F7;text-align:center;font-weight:700;font-size:11px;color:${pctColor}">${d.pct_tergenang.toFixed(2)}%</td>`;
-    tr.onmouseenter=()=>{tr.style.background='#EBF5FB';};
-    tr.onmouseleave=()=>{tr.style.background='';};
+    tr.innerHTML=`
+      <td style="font-weight:600;">${shortName}</td>
+      <td style="text-align:center;font-weight:500;color:var(--text-muted);">${d.total_tergenang.toFixed(1)}</td>
+      <td style="text-align:center;"><span class="pct-badge" style="${badgeBg}">${d.pct_tergenang.toFixed(2)}%</span></td>
+    `;
     tr.onclick=()=>onKecClick(name);
     tbody.appendChild(tr);
   });
