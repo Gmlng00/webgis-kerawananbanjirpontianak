@@ -58,7 +58,7 @@ Anda perlu mengganti file GeoJSON di folder data/ dengan data hasil penelitian a
 ## Fitur Dashboard
 
 - Peta interaktif dengan layer kerawanan banjir (Rawan Tinggi/Sedang/Rendah)
-- Toggle basemap: OpenStreetMap, Satelit, Topografi, Dark Mode
+- Toggle basemap: OpenStreetMap, Satelit, Topografi
 - Filter kerawanan per kelas
 - Kontrol transparansi layer
 - Panel statistik per kecamatan
